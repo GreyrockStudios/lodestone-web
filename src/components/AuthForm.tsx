@@ -18,12 +18,12 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
     try {
       if (mode === 'login') {
         await login(email, password)
-        // Check for verification params
-        const params = new URLSearchParams(window.location.search)
-        if (params.get('verified')) {
+        // Desktop goes to onboarding (model setup), web goes to account
+        const isDesktopApp = !!(window as any).__TAURI__ || !!(window as any).__TAURI_INTERNALS__ || !!(window as any).electronAPI
+        if (isDesktopApp) {
           window.location.href = '/onboarding'
         } else {
-          window.location.href = '/onboarding'
+          window.location.href = '/account'
         }
       } else {
         await register(email, password, displayName)
