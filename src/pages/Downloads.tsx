@@ -6,8 +6,8 @@ const platforms = [
     name: 'macOS',
     subtitle: 'Apple Silicon (M1/M2/M3/M4)',
     icon: '🍎',
-    url: '/downloads/Lodestone-0.5.5-universal.dmg',
-    size: '188 MB',
+    url: '/downloads/Lodestone-0.5.6-universal.dmg',
+    size: '190 MB',
     note: 'Universal binary — works on both Apple Silicon and Intel Macs. Includes local Ollama integration, brain engine, scheduler, and 13 desktop tools.',
     badge: 'Download',
   },
@@ -15,10 +15,10 @@ const platforms = [
     name: 'Windows',
     subtitle: 'Windows 10+ (x64)',
     icon: '🪟',
-    url: '',
-    size: 'Coming soon',
-    note: 'Native Windows app in development. Join the waitlist for early access.',
-    badge: 'Coming soon',
+    url: '/downloads/Lodestone-Setup-0.5.6.exe',
+    size: '93 MB',
+    note: 'Native Windows app. SmartScreen warning expected - click More info then Run anyway. Code signing coming soon.',
+    badge: 'Download',
   },
   {
     name: 'Linux',
@@ -133,7 +133,7 @@ export default function Downloads() {
                     <h3 className="text-lg font-semibold">{p.name}</h3>
                     {p.url && (
                       <span className="text-xs font-medium px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
-                        v0.5.5-alpha
+                        v0.5.6-alpha
                       </span>
                     )}
                   </div>
@@ -165,7 +165,7 @@ export default function Downloads() {
           <div className="p-5 rounded-lg bg-[var(--surface)] border border-[var(--border)]">
             <h3 className="font-semibold text-[var(--text)] mb-2 text-sm">Full-featured desktop app</h3>
             <p className="text-sm text-[var(--text-muted)] leading-relaxed">
-              The macOS app includes local Ollama integration, 13 built-in tools, brain engine, cloud sync, voice mode, and automatic updates — all in <strong className="text-[var(--text)]">188 MB</strong>.
+              The macOS app includes local Ollama integration, 13 built-in tools, brain engine, cloud sync, voice mode, and automatic updates — all in <strong className="text-[var(--text)]">190 MB</strong>.
               Runs natively on Apple Silicon and Intel.
             </p>
           </div>
@@ -185,7 +185,7 @@ export default function Downloads() {
 
         {/* What's new */}
         <div className="p-5 rounded-lg bg-[var(--surface)] border border-[var(--border)] mb-6">
-          <h3 className="font-semibold text-[var(--text)] mb-3 text-sm">What's new in v0.5.5-alpha</h3>
+          <h3 className="font-semibold text-[var(--text)] mb-3 text-sm">What's new in v0.5.6-alpha</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-sm text-[var(--text-muted)]">
             <div className="flex items-center gap-2"><span className="text-green-400">✓</span> Brain engine — self-improving memory & skills</div>
             <div className="flex items-center gap-2"><span className="text-green-400">✓</span> Local Ollama — run AI models on your Mac</div>
@@ -228,7 +228,7 @@ export default function Downloads() {
 
         <div className="text-center text-sm text-[var(--text-dim)]">
           <p>By downloading, you agree to our <a href="/terms" className="text-brand-400 no-underline hover:underline">Terms of Service</a> and <a href="/privacy" className="text-brand-400 no-underline hover:underline">Privacy Policy</a>.</p>
-          <p className="mt-1">v0.5.5-alpha · June 24, 2026</p>
+          <p className="mt-1">v0.5.6-alpha · June 24, 2026 · <a href="/changelog" className="text-brand-400 hover:underline">Changelog</a></p>
         </div>
       </div>
     </div>
