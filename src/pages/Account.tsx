@@ -32,7 +32,7 @@ const CREDIT_PACKS = [
 ]
 
 export default function Account() {
-  const { user, accessToken } = useAuth()
+  const { user, accessToken, logout } = useAuth()
   const navigate = useNavigate()
   const token = accessToken || localStorage.getItem('lodestone_access_token')
 
@@ -181,7 +181,7 @@ export default function Account() {
         <div className="flex items-center gap-4">
           <Link to="/downloads" className="text-[var(--text-muted)] text-sm no-underline hover:text-[var(--text)] transition-colors hidden md:block">Download</Link>
           <Link to="/pricing" className="text-[var(--text-muted)] text-sm no-underline hover:text-[var(--text)] transition-colors hidden md:block">Pricing</Link>
-          <button onClick={() => { localStorage.removeItem('lodestone_access_token'); localStorage.removeItem('lodestone_api_key'); window.location.href = '/' }} className="px-4 py-2 rounded-lg border border-[var(--border)] text-[var(--text-muted)] text-sm hover:bg-[var(--surface-2)] transition-colors">Sign out</button>
+          <button onClick={() => { logout(); window.location.href = '/' }} className="px-4 py-2 rounded-lg border border-[var(--border)] text-[var(--text-muted)] text-sm hover:bg-[var(--surface-2)] transition-colors">Sign out</button>
         </div>
       </nav>
 
