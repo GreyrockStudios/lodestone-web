@@ -41,7 +41,7 @@ export default function GettingStarted() {
         <h2 className="text-2xl font-bold mb-4 text-[var(--text)]">1. Create an account</h2>
         <div className="space-y-4 text-[var(--text-muted)] leading-relaxed">
           <p>
-            Visit <Link to="/register" className="text-[var(--cyan)] hover:underline">heylodestone.com/register</Link> and sign up with your email and a password. You will receive a verification email — click the link to activate your account.
+            Visit <Link to="/register" className="text-[var(--cyan)] hover:underline">heylodestone.com/register</Link> and sign up with your email and a password. You can also sign in with Google or GitHub. You will receive a verification email — click the link to activate your account.
           </p>
           <p>
             If you already have an account, head to <Link to="/login" className="text-[var(--cyan)] hover:underline">heylodestone.com/login</Link>.
@@ -62,6 +62,15 @@ export default function GettingStarted() {
                   <div className="px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-xs text-[var(--text-dim)]">you@example.com</div>
                   <div className="px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-xs text-[var(--text-dim)]">••••••••</div>
                   <div className="px-3 py-2 rounded-lg bg-brand-500 text-white text-center text-sm font-semibold">Sign in</div>
+                  <div className="flex items-center gap-3 my-2">
+                    <div className="flex-1 border-t border-[var(--border)]" />
+                    <span className="text-xs text-[var(--text-dim)]">or</span>
+                    <div className="flex-1 border-t border-[var(--border)]" />
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="flex-1 px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-xs text-[var(--text-muted)] text-center">🔵 Google</div>
+                    <div className="flex-1 px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-xs text-[var(--text-muted)] text-center">⚫ GitHub</div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -75,7 +84,7 @@ export default function GettingStarted() {
         <h2 className="text-2xl font-bold mb-4 text-[var(--text)]">2. Choose your model provider</h2>
         <div className="space-y-4 text-[var(--text-muted)] leading-relaxed">
           <p>
-            Lodestone supports multiple AI providers. On the Community tier, Ollama Cloud is included free. Pro and Studio tiers unlock Claude, GPT-4o, o1, and more.
+            Lodestone supports multiple AI providers. On the Community tier, Ollama Cloud is included free. Pro and Studio tiers unlock Claude, GPT-4o, o3, and more.
           </p>
 
           <div className="space-y-3">
@@ -129,7 +138,7 @@ export default function GettingStarted() {
             </div>
           </AppMockup>
 
-          <Callout type="success" title="Community tier:">Ollama Cloud is included free — no API key needed. Just sign up and start chatting.</Callout>
+          <Callout type="success" title="Community tier:">Ollama Cloud is included free — no API key needed. Just sign up and start chatting. You also get a $5 sign-up bonus for cloud model usage.</Callout>
         </div>
       </section>
 
@@ -172,10 +181,10 @@ Which direction fits your product?" />
             <h3 className="text-lg font-semibold text-[var(--text)]">First conversation tips</h3>
             <ul className="list-disc pl-6 space-y-2">
               <li><strong>Tell it about yourself.</strong> Your name, your work, your preferences. It stores this in memory permanently.</li>
-              <li><strong>Use the tools.</strong> Say "Search the web for..." or "What's the weather in Tokyo?" — the AI picks the right tool automatically. 12 built-in: search, code, reminders, weather, and more.</li>
+              <li><strong>Use the tools.</strong> Say "Search the web for..." or "What's the weather in Tokyo?" — the AI picks the right tool automatically. 14 built-in tools including search, code, reminders, weather, and more.</li>
               <li><strong>Try /recall.</strong> Type <code className="px-1.5 py-0.5 rounded bg-[var(--surface)] border border-[var(--border)] text-[var(--cyan)] text-sm">/recall preferences</code> to search your memories at any time.</li>
               <li><strong>Use /task.</strong> Type <code className="px-1.5 py-0.5 rounded bg-[var(--surface)] border border-[var(--border)] text-[var(--cyan)] text-sm">/task follow up with the client by Friday</code> to create tracked commitments.</li>
-              <li><strong>Set reminders.</strong> Say "Remind me to call Sarah at 3pm" — you'll get an email notification when it's due.</li>
+              <li><strong>Set reminders.</strong> Say "Remind me to call Sarah at 3pm" — you'll get a notification when it's due.</li>
               <li><strong>Run code.</strong> Ask "Run this Python code" or "Calculate 2^20" — sandboxed execution, instant results.</li>
             </ul>
           </div>
@@ -192,7 +201,7 @@ Which direction fits your product?" />
               { icon: "🧠", title: "Memory & /recall", desc: "Your agent remembers everything across conversations. Search memories with /recall." },
               { icon: "🔧", title: "14 built-in tools", desc: "Web search, code execution, reminders, weather, memory, and more. Used automatically." },
               { icon: "📋", title: "Tasks & commitments", desc: "Use /task to create tracked to-dos with due dates. Overdue items surface automatically." },
-              { icon: "⏰", title: "Smart reminders", desc: "Say 'remind me in 30 min' and get an email notification. No app needed." },
+              { icon: "⏰", title: "Smart reminders", desc: "Say 'remind me in 30 min' and get a notification. No extra app needed." },
               { icon: "🐍", title: "Code execution", desc: "Run Python and JavaScript in a sandbox. Calculate, analyze, and process data." },
               { icon: "🤖", title: "6 AI providers", desc: "Ollama Cloud (free), OpenAI, Anthropic, Groq, and more. Switch per-conversation." },
             ].map(f => (
@@ -219,7 +228,7 @@ Which direction fits your product?" />
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
             {[
               { name: "Community", price: "$0", color: "text-[var(--text-muted)]", features: ["Ollama Cloud", "14 built-in tools", "Memory & /recall", "Tasks & commitments", "$5 sign-up bonus"] },
-              { name: "Pro", price: "$29.99/mo", color: "text-brand-400", popular: true, features: ["Everything in Community", "Claude, GPT-4o, o1", "File uploads & RAG", "Conversation sharing", "$15/mo usage included"] },
+              { name: "Pro", price: "$29.99/mo", color: "text-brand-400", popular: true, features: ["Everything in Community", "Web + desktop access", "Claude, GPT-4o, o3, o4-mini", "File uploads & RAG", "Conversation sharing", "$15/mo usage included"] },
               { name: "Studio", price: "$79.99/mo", color: "text-cyan-400", features: ["Everything in Pro", "5 agent identities", "API access", "$40/mo usage included", "Dedicated support"] },
             ].map(t => (
               <div key={t.name} className={`p-4 rounded-lg bg-[var(--surface)] ${t.popular ? "border-2 border-brand-500" : "border border-[var(--border)]"}`}>
@@ -237,7 +246,7 @@ Which direction fits your product?" />
             ))}
           </div>
 
-          <Callout type="info" title="Desktop app:">Download the macOS app for a native experience. It runs in the menu bar, starts on login, and supports on-site Ollama models. See <Link to="/docs/desktop-app" className="text-[var(--cyan)] hover:underline">Desktop App</Link> for details.</Callout>
+          <Callout type="info" title="Desktop app:">Download the desktop app for macOS or Windows. It runs in the system tray, starts on login, and supports local Ollama models. See <Link to="/docs/desktop-app" className="text-[var(--cyan)] hover:underline">Desktop App</Link> for details.</Callout>
         </div>
       </section>
 

@@ -5,7 +5,7 @@ export default function DesktopApp() {
   return (
     <div className="docs-content max-w-3xl">
       <h1 className="text-4xl font-extrabold mb-2 tracking-tight">Desktop App</h1>
-      <p className="text-[var(--text-muted)] text-lg mb-10">Download, install, and set up Lodestone on your Mac. Your AI, always on, always local.</p>
+      <p className="text-[var(--text-muted)] text-lg mb-10">Download, install, and set up Lodestone on your Mac or PC. Your AI, always on, always local.</p>
 
       {/* App mockup — menu bar */}
       <AppMockup title="Lodestone — Desktop">
@@ -45,10 +45,12 @@ export default function DesktopApp() {
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {[
-              { icon: "🖥️", title: "Always on", desc: "Runs in the menu bar. Your agent is ready the moment you need it." },
+              { icon: "🖥️", title: "Always on", desc: "Runs in the system tray. Your agent is ready the moment you need it." },
               { icon: "🔒", title: "Fully private", desc: "Run Ollama locally — your conversations never leave your machine." },
               { icon: "🦙", title: "On-site Ollama", desc: "No API key needed. Run Llama, Mistral, Qwen, and more locally." },
-              { icon: "🔔", title: "Proactive alerts", desc: "Notifications for tasks, reminders, and completed work." },
+              { icon: "🔔", title: "Proactive alerts", desc: "Native notifications for tasks, reminders, and completed work." },
+              { icon: "📁", title: "File access", desc: "Controlled file system access for reading and writing local files." },
+              { icon: "⏱️", title: "Scheduled tasks", desc: "Set up recurring tasks that run automatically on a schedule." },
             ].map(f => (
               <div key={f.title} className="p-4 rounded-lg bg-[var(--surface)] border border-[var(--border)]">
                 <div className="flex items-center gap-2 mb-1">
@@ -72,18 +74,27 @@ export default function DesktopApp() {
                 <li>macOS 13 (Ventura) or later</li>
                 <li>Apple Silicon (M1+) or Intel (x86_64)</li>
                 <li>4 GB RAM minimum, 8 GB recommended</li>
-                <li>500 MB disk space for the app</li>
+                <li>~190 MB disk space for the app</li>
               </ul>
             </div>
             <div className="p-4 rounded-lg bg-[var(--surface)] border border-[var(--border)]">
-              <p className="font-semibold text-[var(--text)] mb-2">For local models</p>
+              <p className="font-semibold text-[var(--text)] mb-2">Windows (minimum)</p>
               <ul className="text-sm text-[var(--text-muted)] space-y-1">
-                <li>8 GB RAM minimum for 7B models</li>
-                <li>16 GB RAM for 13B+ models</li>
-                <li>Apple Silicon recommended (GPU acceleration)</li>
-                <li>2–10 GB additional disk per model</li>
+                <li>Windows 10 or later (x64)</li>
+                <li>4 GB RAM minimum, 8 GB recommended</li>
+                <li>~93 MB disk space for the installer</li>
+                <li>Internet connection for cloud models</li>
               </ul>
             </div>
+          </div>
+          <div className="p-4 rounded-lg bg-[var(--surface)] border border-[var(--border)]">
+            <p className="font-semibold text-[var(--text)] mb-2">For local models (Ollama)</p>
+            <ul className="text-sm text-[var(--text-muted)] space-y-1">
+              <li>8 GB RAM minimum for 7B models</li>
+              <li>16 GB RAM for 13B+ models</li>
+              <li>Apple Silicon or dedicated GPU recommended</li>
+              <li>2–10 GB additional disk per model</li>
+            </ul>
           </div>
         </div>
       </section>
@@ -91,24 +102,29 @@ export default function DesktopApp() {
       <section className="mb-10">
         <h2 className="text-2xl font-bold mb-4 text-[var(--text)]">Download</h2>
         <div className="space-y-4 text-[var(--text-muted)] leading-relaxed">
-          <p>Download the latest release for macOS — just 4 MB, no Electron bloat.</p>
-          <div className="flex gap-3">
+          <p>Download the latest release for your platform:</p>
+          <div className="flex flex-wrap gap-3">
             <a
               href="/downloads"
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm no-underline transition-colors"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Download for macOS
+              <span>🍎</span> Download for macOS
+            </a>
+            <a
+              href="/downloads"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[var(--surface)] border border-[var(--border)] hover:bg-[var(--surface-2)] text-[var(--text)] font-semibold text-sm no-underline transition-colors"
+            >
+              <span>🪟</span> Download for Windows
             </a>
           </div>
           <div className="grid grid-cols-3 gap-3 mt-4">
             <div className="p-3 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-center">
-              <p className="text-2xl font-extrabold text-brand-400">4 MB</p>
-              <p className="text-xs text-[var(--text-dim)]">Download size</p>
+              <p className="text-2xl font-extrabold text-brand-400">~190 MB</p>
+              <p className="text-xs text-[var(--text-dim)]">macOS download</p>
             </div>
             <div className="p-3 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-center">
-              <p className="text-2xl font-extrabold text-cyan-400">Tauri</p>
-              <p className="text-xs text-[var(--text-dim)]">Native runtime</p>
+              <p className="text-2xl font-extrabold text-brand-400">~93 MB</p>
+              <p className="text-xs text-[var(--text-dim)]">Windows download</p>
             </div>
             <div className="p-3 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-center">
               <p className="text-2xl font-extrabold text-green-400">Free</p>
@@ -120,7 +136,9 @@ export default function DesktopApp() {
 
       <section className="mb-10">
         <h2 className="text-2xl font-bold mb-4 text-[var(--text)]">Installation</h2>
-        <div className="space-y-4 text-[var(--text-muted)] leading-relaxed">
+
+        <h3 className="text-lg font-semibold text-[var(--text)] mb-3">macOS</h3>
+        <div className="space-y-4 text-[var(--text-muted)] leading-relaxed mb-8">
           <div className="space-y-4">
             {[
               { step: '1', title: 'Open the DMG', desc: 'Double-click the downloaded .dmg file. A Finder window opens with the Lodestone app icon.' },
@@ -133,7 +151,7 @@ export default function DesktopApp() {
                   {s.step}
                 </div>
                 <div>
-                  <h3 className="font-semibold text-[var(--text)] mb-0.5">{s.title}</h3>
+                  <h4 className="font-semibold text-[var(--text)] mb-0.5">{s.title}</h4>
                   <p className="text-sm">{s.desc}</p>
                 </div>
               </div>
@@ -142,13 +160,88 @@ export default function DesktopApp() {
 
           <Callout type="warning" title="Gatekeeper note:">If macOS blocks the app because it is from an "unidentified developer," go to <strong>System Settings → Privacy & Security</strong> and click <strong>Open Anyway</strong>. This is normal for apps not distributed through the Mac App Store.</Callout>
         </div>
+
+        <h3 className="text-lg font-semibold text-[var(--text)] mb-3">Windows</h3>
+        <div className="space-y-4 text-[var(--text-muted)] leading-relaxed">
+          <div className="space-y-4">
+            {[
+              { step: '1', title: 'Run the installer', desc: 'Double-click the downloaded .exe file. Windows SmartScreen may show a warning — click "More info" then "Run anyway".' },
+              { step: '2', title: 'Follow the setup wizard', desc: 'Choose your install location and preferences. The installer will set up the app and create Start Menu shortcuts.' },
+              { step: '3', title: 'Launch Lodestone', desc: 'Open from the Start Menu or desktop shortcut. The app will appear in your system tray.' },
+              { step: '4', title: 'Sign in or create account', desc: 'Log in with your existing account or create a new one. Your settings sync across devices.' },
+            ].map(s => (
+              <div key={s.step} className="flex gap-4">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-cyan-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-lg shadow-brand-500/20">
+                  {s.step}
+                </div>
+                <div>
+                  <h4 className="font-semibold text-[var(--text)] mb-0.5">{s.title}</h4>
+                  <p className="text-sm">{s.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <Callout type="info" title="SmartScreen:">Windows SmartScreen may warn that the app is unrecognized. This is expected for new software without extended code signing. Click "More info" → "Run anyway." Full code signing is coming soon.</Callout>
+        </div>
+      </section>
+
+      <section className="mb-10">
+        <h2 className="text-2xl font-bold mb-4 text-[var(--text)]">Command Palette</h2>
+        <div className="space-y-4 text-[var(--text-muted)] leading-relaxed">
+          <p>
+            Press <kbd className="px-2 py-0.5 rounded bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] text-sm font-mono">Cmd+K</kbd> (Mac) or <kbd className="px-2 py-0.5 rounded bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] text-sm font-mono">Ctrl+K</kbd> (Windows) to open the command palette. Quickly access any feature without leaving the keyboard:
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {[
+              { cmd: "New Chat", desc: "Start a fresh conversation" },
+              { cmd: "Search", desc: "Search conversations and memories" },
+              { cmd: "Export", desc: "Export chat as MD, JSON, or PDF" },
+              { cmd: "Recall Memory", desc: "Search your knowledge graph" },
+              { cmd: "Set Reminder", desc: "Create a timed reminder" },
+              { cmd: "Theme", desc: "Switch dark/light/system theme" },
+              { cmd: "Settings", desc: "Open app settings" },
+              { cmd: "Account", desc: "Manage your account & billing" },
+            ].map(item => (
+              <div key={item.cmd} className="flex items-center gap-2 p-2 rounded-lg bg-[var(--surface)] border border-[var(--border)]">
+                <span className="text-sm font-medium text-[var(--text)]">{item.cmd}</span>
+                <span className="text-xs text-[var(--text-dim)]">— {item.desc}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="mb-10">
+        <h2 className="text-2xl font-bold mb-4 text-[var(--text)]">File Access Tiers</h2>
+        <div className="space-y-4 text-[var(--text-muted)] leading-relaxed">
+          <p>
+            The desktop app can access local files, but you control exactly how much. Choose a file access tier in <strong>Settings → Desktop → File Access</strong>:
+          </p>
+          <div className="space-y-3">
+            {[
+              { icon: "🔒", level: "No Access", desc: "The agent cannot read or write any files. Maximum privacy.", color: "text-red-400" },
+              { icon: "👁️", level: "Minimal", desc: "Read-only access to Desktop, Documents, and Downloads folders.", color: "text-yellow-400" },
+              { icon: "📂", level: "Standard", desc: "Read/write your home folder. Blocks .ssh, .gnupg, .keychain. Default.", color: "text-green-400" },
+              { icon: "🔓", level: "Full Access", desc: "Full filesystem access. Blocks only .ssh, .gnupg, .keychain, .lodestone. Use with caution.", color: "text-brand-400" },
+            ].map(t => (
+              <div key={t.level} className="flex items-start gap-3 p-4 rounded-lg bg-[var(--surface)] border border-[var(--border)]">
+                <span className="text-xl">{t.icon}</span>
+                <div>
+                  <p className={`font-semibold ${t.color}`}>{t.level}</p>
+                  <p className="text-sm text-[var(--text-muted)]">{t.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </section>
 
       <section className="mb-10">
         <h2 className="text-2xl font-bold mb-4 text-[var(--text)]">On-site Ollama</h2>
         <div className="space-y-4 text-[var(--text-muted)] leading-relaxed">
           <p>
-            On-site Ollama is the easiest way to run AI models privately on your Mac. Lodestone handles the entire lifecycle:
+            On-site Ollama is the easiest way to run AI models privately on your computer. Lodestone handles the entire lifecycle:
           </p>
           <ul className="list-disc pl-6 space-y-2">
             <li><strong className="text-[var(--text)]">Auto-install.</strong> If Ollama isn't installed, Lodestone downloads and sets it up in the background.</li>
@@ -201,13 +294,13 @@ export default function DesktopApp() {
       </section>
 
       <section className="mb-10">
-        <h2 className="text-2xl font-bold mb-4 text-[var(--text)]">Menu bar & background behavior</h2>
+        <h2 className="text-2xl font-bold mb-4 text-[var(--text)]">System tray & background behavior</h2>
         <div className="space-y-4 text-[var(--text-muted)] leading-relaxed">
           <p>
-            The desktop app runs in your menu bar so your agent is always available:
+            The desktop app runs in your system tray so your agent is always available:
           </p>
 
-          {/* Menu bar mockup */}
+          {/* System tray mockup */}
           <div className="p-4 rounded-xl border border-[var(--border)] bg-[var(--surface)]">
             <div className="flex items-center gap-3 px-4 py-2 bg-[var(--bg)] rounded-lg">
               <div className="flex-1" />
@@ -222,9 +315,9 @@ export default function DesktopApp() {
           </div>
 
           <ul className="list-disc pl-6 space-y-2">
-            <li><strong className="text-[var(--text)]">Menu bar icon.</strong> When running in the background, Lodestone shows a 🪨 icon in the menu bar. Click it to open the chat or check agent status.</li>
-            <li><strong className="text-[var(--text)]">Proactive notifications.</strong> Your agent can send you macOS notifications for reminders, completed tasks, and things it thinks you should know.</li>
-            <li><strong className="text-[var(--text)]">Auto-start on login.</strong> Enable in Settings → General → "Start Lodestone when I log in." Off by default.</li>
+            <li><strong className="text-[var(--text)]">System tray icon.</strong> When running in the background, Lodestone shows a 🪨 icon in the system tray. Click it to open the chat or check agent status.</li>
+            <li><strong className="text-[var(--text)]">Proactive notifications.</strong> Your agent sends native notifications for reminders, completed tasks, and things it thinks you should know.</li>
+            <li><strong className="text-[var(--text)]">Auto-start on login.</strong> Enable in Settings → Desktop → "Start Lodestone when I log in." Off by default.</li>
             <li><strong className="text-[var(--text)]">Resource management.</strong> When idle, Lodestone uses minimal CPU and memory. Ollama unloads models after 5 minutes of inactivity.</li>
           </ul>
         </div>
@@ -251,9 +344,14 @@ export default function DesktopApp() {
                 { feature: "File uploads", web: "✓", desktop: "✓" },
                 { feature: "Conversation sharing", web: "✓", desktop: "✓" },
                 { feature: "On-site Ollama", web: "—", desktop: "✓" },
-                { feature: "Menu bar / always on", web: "—", desktop: "✓" },
+                { feature: "System tray / always on", web: "—", desktop: "✓" },
                 { feature: "Auto-start on login", web: "—", desktop: "✓" },
                 { feature: "Native notifications", web: "—", desktop: "✓" },
+                { feature: "File access tiers", web: "—", desktop: "✓" },
+                { feature: "Scheduled tasks", web: "—", desktop: "✓" },
+                { feature: "Audit log", web: "—", desktop: "✓" },
+                { feature: "Sub-agents", web: "—", desktop: "✓" },
+                { feature: "Cloud sync", web: "—", desktop: "✓" },
                 { feature: "Offline mode", web: "—", desktop: "✓" },
                 { feature: "BYOK (any provider)", web: "✓", desktop: "✓" },
               ].map(row => (
@@ -266,9 +364,10 @@ export default function DesktopApp() {
             </tbody>
           </table>
         </div>
+        <Callout type="info" title="Note:">The web app currently redirects to this docs site — full chat requires the desktop app. Web chat is available on Pro and Studio tiers.</Callout>
       </section>
 
-      <DocsNav prev={{ label: "Features", href: "/docs/features" }} next={{ label: "API Reference", href: "/docs/api" }} />
+      <DocsNav prev={{ label: "Features", href: "/docs/features" }} next={{ label: "Usage Guide", href: "/docs/usage-guide" }} />
     </div>
   )
 }

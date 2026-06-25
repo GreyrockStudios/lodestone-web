@@ -239,7 +239,7 @@ I've saved these details to memory. Want me to create tasks for each milestone?"
       <section className="mb-12">
         <h2 className="text-2xl font-bold mb-4 text-[var(--text)]">🔧 14 Built-in Tools</h2>
         <p className="text-[var(--text-muted)] leading-relaxed mb-4">
-          Your agent can take action, not just talk. 12 integrated tools let it search the web, run code, set reminders, and more — all without leaving the conversation.
+          Your agent can take action, not just talk. 14 integrated tools let it search the web, run code, set reminders, and more — all without leaving the conversation.
         </p>
         <AppMockup title="Lodestone — Tools">
           <div className="flex" style={{ height: 360 }}>
@@ -276,6 +276,8 @@ Toronto is 17°C, mostly clear skies. I've set a reminder for 3pm to call Sarah.
             { icon: '📎', name: 'File Analysis', desc: 'Extract and analyze PDFs, CSVs, text' },
             { icon: '🧠', name: 'Smart Greeting', desc: 'Time-aware, personalized greetings' },
             { icon: '💬', name: 'Conversation Sharing', desc: 'Share chats with unique links' },
+            { icon: '🔄', name: 'Slash Commands', desc: '/recall, /task, /remind, /template shortcuts' },
+            { icon: '⚡', name: 'Streaming', desc: 'Real-time token-by-token responses' },
           ].map(t => (
             <div key={t.name} className="p-3 rounded-lg bg-[var(--surface)] border border-[var(--border)]">
               <div className="flex items-center gap-2 mb-1">
@@ -310,15 +312,18 @@ Toronto is 17°C, mostly clear skies. I've set a reminder for 3pm to call Sarah.
                 { feature: "Smart greeting", free: "✓", pro: "✓", studio: "✓" },
                 { feature: "Templates", free: "✓", pro: "✓", studio: "✓" },
                 { feature: "Ollama Cloud", free: "✓", pro: "✓", studio: "✓" },
-                { feature: "14+ built-in tools", free: "✓", pro: "✓", studio: "✓" },
-                { feature: "Web access", free: "—", pro: "✓", studio: "✓" },
-                { feature: "Claude, GPT-4o, o1", free: "—", pro: "✓", studio: "✓" },
+                { feature: "14 built-in tools", free: "✓", pro: "✓", studio: "✓" },
+                { feature: "Web access", free: "✓", pro: "✓", studio: "✓" },
+                { feature: "Desktop app (Mac & Windows)", free: "✓", pro: "✓", studio: "✓" },
+                { feature: "Bring your own key", free: "✓", pro: "✓", studio: "✓" },
+                { feature: "Claude, GPT-4o, o3, o4-mini", free: "—", pro: "✓", studio: "✓" },
                 { feature: "File uploads & RAG", free: "—", pro: "✓", studio: "✓" },
                 { feature: "Conversation sharing", free: "—", pro: "✓", studio: "✓" },
-                { feature: "Desktop app", free: "✓", pro: "✓", studio: "✓" },
-                { feature: "Multiple agents", free: "—", pro: "—", studio: "5" },
+                { feature: "Custom instructions", free: "—", pro: "✓", studio: "✓" },
+                { feature: "Priority support", free: "—", pro: "✓", studio: "✓" },
+                { feature: "Multiple agent identities", free: "—", pro: "—", studio: "5" },
                 { feature: "API access", free: "—", pro: "—", studio: "✓" },
-                { feature: "Monthly usage", free: "$10", pro: "$15", studio: "$40" },
+                { feature: "Included usage", free: "$5 bonus", pro: "$15/mo", studio: "$40/mo" },
               ].map(row => (
                 <tr key={row.feature} className="border-b border-[var(--border)]">
                   <td className="py-2.5 pr-4 text-[var(--text)]">{row.feature}</td>

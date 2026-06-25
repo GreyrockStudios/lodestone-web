@@ -27,6 +27,7 @@ import Features from "./pages/Features"
 import DesktopApp from "./pages/DesktopApp"
 import ApiReference from "./pages/ApiReference"
 import Faq from "./pages/Faq"
+import UsageGuide from "./pages/UsageGuide"
 import NotFound from "./pages/NotFound"
 import Downloads from "./pages/Downloads"
 import Changelog from "./pages/Changelog"
@@ -117,6 +118,7 @@ export default function App() {
             <Route path="features" element={<Features />} />
             <Route path="desktop-app" element={<DesktopApp />} />
             <Route path="api" element={<ApiReference />} />
+            <Route path="usage-guide" element={<UsageGuide />} />
             <Route path="faq" element={<Faq />} />
           </Route>
           {/* Logged-in web users: account management only — brain is desktop */}

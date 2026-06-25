@@ -5,6 +5,7 @@ const sidebarLinks = [
   { path: '/docs/getting-started', label: 'Getting Started' },
   { path: '/docs/features', label: 'Features' },
   { path: '/docs/desktop-app', label: 'Desktop App' },
+  { path: '/docs/usage-guide', label: 'Usage Guide' },
   { path: '/docs/api', label: 'API Reference' },
   { path: '/docs/faq', label: 'FAQ' },
 ]
