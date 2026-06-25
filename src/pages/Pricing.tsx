@@ -184,6 +184,69 @@ export default function Pricing() {
           </div>
         </div>
 
+        {/* Per-model token pricing */}
+        <div className="mb-16">
+          <h2 className="text-2xl font-bold mb-2 text-center">Per-token pricing</h2>
+          <p className="text-[var(--text-muted)] text-sm text-center mb-6">You only pay for the tokens you use. Costs are deducted from your monthly credits. BYOK users pay the provider directly — zero charges from Lodestone.</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b border-[var(--border)]">
+                  <th className="text-left py-3 pr-4 text-[var(--text-muted)] font-medium">Provider</th>
+                  <th className="text-left py-3 px-3 text-[var(--text-muted)] font-medium">Model</th>
+                  <th className="text-right py-3 px-3 text-[var(--text-muted)] font-medium">Input / 1M tokens</th>
+                  <th className="text-right py-3 px-3 text-[var(--text-muted)] font-medium">Output / 1M tokens</th>
+                  <th className="text-center py-3 px-3 text-[var(--text-muted)] font-medium">Available on</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  { provider: '\u{1F999} Ollama', model: 'GLM-5.1 Cloud', inputPer1M: '$0.10', outputPer1M: '$0.38', tiers: 'All', badge: 'Default', badgeColor: 'bg-green-500/20 text-green-400 border-green-500/30' },
+                  { provider: '\u{1F999} Ollama', model: 'Llama 3', inputPer1M: '$0.10', outputPer1M: '$0.38', tiers: 'All', badge: '', badgeColor: '' },
+                  { provider: '\u{1F999} Ollama', model: 'Mistral', inputPer1M: '$0.10', outputPer1M: '$0.38', tiers: 'All', badge: '', badgeColor: '' },
+                  { provider: '\u{1F7E2} OpenAI', model: 'GPT-4o-mini', inputPer1M: '$0.08', outputPer1M: '$0.33', tiers: 'Pro+', badge: '', badgeColor: '' },
+                  { provider: '\u{1F7E2} OpenAI', model: 'GPT-4o', inputPer1M: '$2.75', outputPer1M: '$11.00', tiers: 'Pro+', badge: '', badgeColor: '' },
+                  { provider: '\u{1F7E2} OpenAI', model: 'o1-mini', inputPer1M: '$3.30', outputPer1M: '$13.20', tiers: 'Pro+', badge: '', badgeColor: '' },
+                  { provider: '\u{1F7E2} OpenAI', model: 'o1', inputPer1M: '$16.50', outputPer1M: '$66.00', tiers: 'Pro+', badge: '', badgeColor: '' },
+                  { provider: '\u{1F7E3} Anthropic', model: 'Claude Haiku 4.5', inputPer1M: '$1.10', outputPer1M: '$5.50', tiers: 'Pro+', badge: '', badgeColor: '' },
+                  { provider: '\u{1F7E3} Anthropic', model: 'Claude Sonnet 4', inputPer1M: '$3.30', outputPer1M: '$16.50', tiers: 'Pro+', badge: '', badgeColor: '' },
+                  { provider: '\u{1F7E3} Anthropic', model: 'Claude Opus 4', inputPer1M: '$5.50', outputPer1M: '$27.50', tiers: 'Pro+', badge: '', badgeColor: '' },
+                ].map((row, i) => (
+                  <tr key={i} className={i % 2 === 0 ? 'bg-[var(--surface)]' : ''}>
+                    <td className="py-2.5 pr-4 text-[var(--text)] font-medium">{row.provider}</td>
+                    <td className="py-2.5 px-3 text-[var(--text)]">
+                      {row.model}
+                      {row.badge && <span className={`ml-2 inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold border ${row.badgeColor}`}>{row.badge}</span>}
+                    </td>
+                    <td className="text-right py-2.5 px-3 font-mono text-[var(--text-muted)]">{row.inputPer1M}</td>
+                    <td className="text-right py-2.5 px-3 font-mono text-[var(--text-muted)]">{row.outputPer1M}</td>
+                    <td className="text-center py-2.5 px-3 text-[var(--text-muted)]">{row.tiers}</td>
+                  </tr>
+                ))}
+                <tr className="border-t border-[var(--border)]">
+                  <td colSpan={5} className="py-2 text-xs text-[var(--text-dim)] text-center">
+                    Local Ollama models are <strong>free</strong> — no token costs. Prices shown are per 1 million tokens. BYOK = bring your own key, pay the provider directly.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+            <div className="p-4 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-center">
+              <p className="text-sm font-semibold text-[var(--text)] mb-1">What's a token?</p>
+              <p className="text-xs text-[var(--text-muted)]">~1 token = 4 characters. A typical message is 50–500 tokens. A long response can be 1,000+ tokens.</p>
+            </div>
+            <div className="p-4 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-center">
+              <p className="text-sm font-semibold text-[var(--text)] mb-1">How much does a chat cost?</p>
+              <p className="text-xs text-[var(--text-muted)]">With GLM-5.1 Cloud (default), a 10-message conversation costs ~$0.01. Premium models cost more.</p>
+            </div>
+            <div className="p-4 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-center">
+              <p className="text-sm font-semibold text-[var(--text)] mb-1">Bring your own key</p>
+              <p className="text-xs text-[var(--text-muted)]">Add your OpenAI or Anthropic API key in Settings. You pay the provider directly — zero markup from Lodestone.</p>
+            </div>
+          </div>
+        </div>
+
         {/* Trust section */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center mb-12">
           <div className="p-6 rounded-xl bg-[var(--surface)] border border-[var(--border)]">

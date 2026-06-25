@@ -37,6 +37,7 @@ export default function GettingStarted() {
         </div>
       </AppMockup>
 
+      {/* Step 1: Create Account */}
       <section className="mb-10">
         <h2 className="text-2xl font-bold mb-4 text-[var(--text)]">1. Create an account</h2>
         <div className="space-y-4 text-[var(--text-muted)] leading-relaxed">
@@ -76,15 +77,16 @@ export default function GettingStarted() {
             </div>
           </AppMockup>
 
-          <Callout type="info" title="Tip:">Your display name is what your agent will call you. Pick something you like — you can always change it later in Settings.</Callout>
+          <Callout type="info" title="Tip:">Your display name is what your agent will call you. Pick something you like — you can always change it later in Settings → Profile.</Callout>
         </div>
       </section>
 
+      {/* Step 2: Choose Model Provider */}
       <section className="mb-10">
         <h2 className="text-2xl font-bold mb-4 text-[var(--text)]">2. Choose your model provider</h2>
         <div className="space-y-4 text-[var(--text-muted)] leading-relaxed">
           <p>
-            Lodestone supports multiple AI providers. On the Community tier, Ollama Cloud is included free. Pro and Studio tiers unlock Claude, GPT-4o, o3, and more.
+            Lodestone supports multiple AI providers. The Community tier includes Ollama Cloud and GLM Cloud free — no API key needed. Pro and Studio tiers unlock Claude, GPT-4o, o3, o4-mini, and more.
           </p>
 
           <div className="space-y-3">
@@ -92,14 +94,17 @@ export default function GettingStarted() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {[
                 { name: "Ollama Cloud", key: "Free — included with Community", desc: "Fast local-class models. No API key needed.", free: true },
-                { name: "OpenAI", key: "GPT-4o, GPT-4o-mini, o3, o4-mini", desc: "Pro & Studio tiers" },
-                { name: "Anthropic", key: "Claude 4 Sonnet, Claude 4 Opus", desc: "Pro & Studio tiers" },
-                { name: "Groq", key: "Llama, Mixtral, Gemma — fast inference", desc: "Pro & Studio tiers" },
+                { name: "GLM Cloud", key: "Free — included with Community", desc: "Zhipu AI models. No API key needed.", free: true },
+                { name: "OpenAI", key: "GPT-4o, GPT-4o-mini, o3, o4-mini", desc: "Pro & Studio tiers (or BYOK)" },
+                { name: "Anthropic", key: "Claude 4 Sonnet, Claude 4 Opus", desc: "Pro & Studio tiers (or BYOK)" },
+                { name: "Groq", key: "Llama, Mixtral, Gemma — fast inference", desc: "Pro & Studio tiers (or BYOK)" },
+                { name: "Local Ollama", key: "Llama 3, Mistral, Qwen, and more", desc: "Desktop app only — fully private, no internet", local: true },
               ].map(p => (
                 <div key={p.name} className="p-4 rounded-lg bg-[var(--surface)] border border-[var(--border)]">
                   <div className="flex items-center justify-between mb-1">
                     <p className="font-semibold text-[var(--text)]">{p.name}</p>
                     {p.free && <span className="text-xs bg-brand-500/15 text-brand-400 px-2 py-0.5 rounded-full font-medium">Free</span>}
+                    {p.local && <span className="text-xs bg-green-500/15 text-green-400 px-2 py-0.5 rounded-full font-medium">Local</span>}
                   </div>
                   <p className="text-sm text-[var(--text-muted)] mb-1">{p.key}</p>
                   <p className="text-xs text-[var(--text-dim)]">{p.desc}</p>
@@ -108,9 +113,13 @@ export default function GettingStarted() {
             </div>
           </div>
 
-          <p>
-            To add a key, go to <strong>Settings → Providers</strong>, select your provider, and paste the key. It is validated immediately — if it works, you are ready to chat.
-          </p>
+          <h3 className="text-lg font-semibold text-[var(--text)] mt-6">How to connect a provider</h3>
+          <ol className="list-decimal pl-6 space-y-2">
+            <li>Open <strong>Settings → Providers</strong> (or click the provider selector in chat).</li>
+            <li>Select your provider (e.g., OpenAI).</li>
+            <li>Paste your API key and click <strong>Validate</strong>. If it works, you're ready to chat.</li>
+            <li>Switch providers per-conversation using the provider dropdown at the top of any chat.</li>
+          </ol>
 
           {/* Settings mockup */}
           <AppMockup title="Settings — Providers">
@@ -121,6 +130,7 @@ export default function GettingStarted() {
                 <div className="space-y-2">
                   {[
                     { name: "Ollama Cloud", status: "Connected", statusColor: "text-green-400", icon: "🦙" },
+                    { name: "GLM Cloud", status: "Connected", statusColor: "text-green-400", icon: "🟣" },
                     { name: "OpenAI", status: "Add API key", statusColor: "text-[var(--text-dim)]", icon: "🟢" },
                     { name: "Anthropic", status: "Add API key", statusColor: "text-[var(--text-dim)]", icon: "🟠" },
                     { name: "Groq", status: "Add API key", statusColor: "text-[var(--text-dim)]", icon: "⚡" },
@@ -138,10 +148,13 @@ export default function GettingStarted() {
             </div>
           </AppMockup>
 
-          <Callout type="success" title="Community tier:">Ollama Cloud is included free — no API key needed. Just sign up and start chatting. You also get a $5 sign-up bonus for cloud model usage.</Callout>
+          <Callout type="success" title="Community tier:">Ollama Cloud and GLM Cloud are included free — no API key needed. Just sign up and start chatting. You also get a $5 sign-up bonus for cloud model usage.</Callout>
+
+          <Callout type="info" title="BYOK (Bring Your Own Key):">On any tier, you can bring your own OpenAI, Anthropic, or Groq API key. When you use BYOK, you pay the provider directly — nothing goes through Lodestone's billing. This is the cheapest way to use premium models.</Callout>
         </div>
       </section>
 
+      {/* Step 3: Start Chatting */}
       <section className="mb-10">
         <h2 className="text-2xl font-bold mb-4 text-[var(--text)]">3. Start chatting</h2>
         <div className="space-y-4 text-[var(--text-muted)] leading-relaxed">
@@ -181,16 +194,19 @@ Which direction fits your product?" />
             <h3 className="text-lg font-semibold text-[var(--text)]">First conversation tips</h3>
             <ul className="list-disc pl-6 space-y-2">
               <li><strong>Tell it about yourself.</strong> Your name, your work, your preferences. It stores this in memory permanently.</li>
-              <li><strong>Use the tools.</strong> Say "Search the web for..." or "What's the weather in Tokyo?" — the AI picks the right tool automatically. 14 built-in tools including search, code, reminders, weather, and more.</li>
+              <li><strong>Use the tools.</strong> Say "Search the web for..." or "What's the weather in Tokyo?" — the AI picks the right tool automatically. 14+ built-in tools including search, code, reminders, weather, and more.</li>
               <li><strong>Try /recall.</strong> Type <code className="px-1.5 py-0.5 rounded bg-[var(--surface)] border border-[var(--border)] text-[var(--cyan)] text-sm">/recall preferences</code> to search your memories at any time.</li>
               <li><strong>Use /task.</strong> Type <code className="px-1.5 py-0.5 rounded bg-[var(--surface)] border border-[var(--border)] text-[var(--cyan)] text-sm">/task follow up with the client by Friday</code> to create tracked commitments.</li>
               <li><strong>Set reminders.</strong> Say "Remind me to call Sarah at 3pm" — you'll get a notification when it's due.</li>
-              <li><strong>Run code.</strong> Ask "Run this Python code" or "Calculate 2^20" — sandboxed execution, instant results.</li>
+              <li><strong>Upload files.</strong> Drag files into chat or click the attach button (📎). The agent reads them and stores key facts in memory. Available on Pro and Studio.</li>
+              <li><strong>Use templates.</strong> Type <code className="px-1.5 py-0.5 rounded bg-[var(--surface)] border border-[var(--border)] text-[var(--cyan)] text-sm">/template</code> to start a structured session (Weekly Review, Brainstorm, Decision, Email, Daily Brief, Code Help).</li>
+              <li><strong>Open the command palette.</strong> Press <kbd className="px-2 py-0.5 rounded bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] text-sm font-mono">Cmd+K</kbd> (Mac) or <kbd className="px-2 py-0.5 rounded bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] text-sm font-mono">Ctrl+K</kbd> (Windows) for quick access to every feature.</li>
             </ul>
           </div>
         </div>
       </section>
 
+      {/* Step 4: Key Features */}
       <section className="mb-10">
         <h2 className="text-2xl font-bold mb-4 text-[var(--text)]">4. Key features to explore</h2>
         <div className="space-y-4 text-[var(--text-muted)] leading-relaxed">
@@ -199,11 +215,17 @@ Which direction fits your product?" />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
             {[
               { icon: "🧠", title: "Memory & /recall", desc: "Your agent remembers everything across conversations. Search memories with /recall." },
-              { icon: "🔧", title: "14 built-in tools", desc: "Web search, code execution, reminders, weather, memory, and more. Used automatically." },
+              { icon: "🔧", title: "14+ built-in tools", desc: "Web search, code execution, reminders, weather, memory, and more. Used automatically." },
               { icon: "📋", title: "Tasks & commitments", desc: "Use /task to create tracked to-dos with due dates. Overdue items surface automatically." },
               { icon: "⏰", title: "Smart reminders", desc: "Say 'remind me in 30 min' and get a notification. No extra app needed." },
               { icon: "🐍", title: "Code execution", desc: "Run Python and JavaScript in a sandbox. Calculate, analyze, and process data." },
-              { icon: "🤖", title: "6 AI providers", desc: "Ollama Cloud (free), OpenAI, Anthropic, Groq, and more. Switch per-conversation." },
+              { icon: "🤖", title: "6 AI providers", desc: "Ollama Cloud, GLM Cloud (free), OpenAI, Anthropic, Groq, and local Ollama. Switch per-conversation." },
+              { icon: "📎", title: "File uploads & RAG", desc: "Drop files into chat. Agent reads them, extracts facts, and stores in your knowledge base." },
+              { icon: "🔗", title: "Conversation sharing", desc: "Share any chat with a unique link. Optional expiration. No login required for viewers." },
+              { icon: "🪪", title: "Personas & identity", desc: "Customize your agent's name, personality, profession, and tone. Create multiple personas." },
+              { icon: "📝", title: "Templates", desc: "Pre-built sessions: Weekly Review, Brainstorm, Decision, Email, Daily Brief, Code Help." },
+              { icon: "📊", title: "Model Compare", desc: "Run the same prompt across multiple models side by side. See which one gives the best answer." },
+              { icon: "🎙️", title: "Voice input & TTS", desc: "Click the microphone to dictate. Click the speaker on any message to hear it read aloud." },
             ].map(f => (
               <div key={f.title} className="p-4 rounded-lg bg-[var(--surface)] border border-[var(--border)]">
                 <div className="flex items-center gap-2 mb-2">
@@ -217,19 +239,21 @@ Which direction fits your product?" />
         </div>
       </section>
 
+      {/* Step 5: Upgrade */}
       <section className="mb-10">
         <h2 className="text-2xl font-bold mb-4 text-[var(--text)]">5. Upgrade when you are ready</h2>
         <div className="space-y-4 text-[var(--text-muted)] leading-relaxed">
           <p>
-            The Community tier is free forever with Ollama Cloud. When you need more — Claude, GPT-4o, file uploads, sharing — check out our <Link to="/pricing" className="text-[var(--cyan)] hover:underline">pricing plans</Link>.
+            The Community tier is free forever with Ollama Cloud and GLM Cloud. When you need more — Claude, GPT-4o, file uploads, sharing, personas — check out our <Link to="/pricing" className="text-[var(--cyan)] hover:underline">pricing plans</Link>.
           </p>
 
-          {/* Pricing comparison mini */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
+          {/* Pricing comparison */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
             {[
-              { name: "Community", price: "$0", color: "text-[var(--text-muted)]", features: ["Ollama Cloud", "14 built-in tools", "Memory & /recall", "Tasks & commitments", "$5 sign-up bonus"] },
-              { name: "Pro", price: "$29.99/mo", color: "text-brand-400", popular: true, features: ["Everything in Community", "Web + desktop access", "Claude, GPT-4o, o3, o4-mini", "File uploads & RAG", "Conversation sharing", "$15/mo usage included"] },
-              { name: "Studio", price: "$79.99/mo", color: "text-cyan-400", features: ["Everything in Pro", "5 agent identities", "API access", "$40/mo usage included", "Dedicated support"] },
+              { name: "Community", price: "$0", color: "text-[var(--text-muted)]", features: ["Ollama Cloud & GLM Cloud", "14+ built-in tools", "Memory & /recall", "Tasks & commitments", "Smart greeting", "Templates", "$5 sign-up bonus"] },
+              { name: "Pro", price: "$29.99/mo", color: "text-brand-400", popular: true, features: ["Everything in Community", "Web + desktop access", "Claude, GPT-4o, o3, o4-mini", "File uploads & RAG", "Conversation sharing", "Personas & custom instructions", "$15/mo credits included"] },
+              { name: "Studio", price: "$79.99/mo", color: "text-cyan-400", features: ["Everything in Pro", "5 agent identities", "API access", "Browser automation", "MCP server connections", "$40/mo credits included", "Dedicated support"] },
+              { name: "Enterprise", price: "Custom", color: "text-[var(--text-dim)]", features: ["Everything in Studio", "Custom deployment", "SLA guarantee", "Volume licensing", "Dedicated account manager", "Priority support", "Contact us"] },
             ].map(t => (
               <div key={t.name} className={`p-4 rounded-lg bg-[var(--surface)] ${t.popular ? "border-2 border-brand-500" : "border border-[var(--border)]"}`}>
                 {t.popular && <div className="text-xs font-semibold text-brand-400 mb-1">Most Popular</div>}
@@ -246,7 +270,9 @@ Which direction fits your product?" />
             ))}
           </div>
 
-          <Callout type="info" title="Desktop app:">Download the desktop app for macOS or Windows. It runs in the system tray, starts on login, and supports local Ollama models. See <Link to="/docs/desktop-app" className="text-[var(--cyan)] hover:underline">Desktop App</Link> for details.</Callout>
+          <Callout type="info" title="BYOK:">Bring your own API key for any provider and pay nothing to Lodestone. You only pay the provider directly. Works on any tier, including free Community.</Callout>
+
+          <Callout type="info" title="Desktop app:">Download the desktop app for macOS or Windows. It runs in the system tray, supports local Ollama models, and includes desktop-only features like file access, scheduled tasks, and native notifications. See <Link to="/docs/desktop-app" className="text-[var(--cyan)] hover:underline">Desktop App</Link> for details.</Callout>
         </div>
       </section>
 

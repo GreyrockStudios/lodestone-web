@@ -37,6 +37,7 @@ export default function DesktopApp() {
         </div>
       </AppMockup>
 
+      {/* Why Desktop */}
       <section className="mb-10">
         <h2 className="text-2xl font-bold mb-4 text-[var(--text)]">Why the desktop app?</h2>
         <div className="space-y-4 text-[var(--text-muted)] leading-relaxed">
@@ -51,6 +52,8 @@ export default function DesktopApp() {
               { icon: "🔔", title: "Proactive alerts", desc: "Native notifications for tasks, reminders, and completed work." },
               { icon: "📁", title: "File access", desc: "Controlled file system access for reading and writing local files." },
               { icon: "⏱️", title: "Scheduled tasks", desc: "Set up recurring tasks that run automatically on a schedule." },
+              { icon: "🪪", title: "Personas", desc: "Create and switch between multiple agent identities." },
+              { icon: "🔄", title: "Cloud sync", desc: "Pro & Studio: auto-sync conversations and memories across devices every 5 minutes." },
             ].map(f => (
               <div key={f.title} className="p-4 rounded-lg bg-[var(--surface)] border border-[var(--border)]">
                 <div className="flex items-center gap-2 mb-1">
@@ -64,12 +67,13 @@ export default function DesktopApp() {
         </div>
       </section>
 
+      {/* System requirements */}
       <section className="mb-10">
         <h2 className="text-2xl font-bold mb-4 text-[var(--text)]">System requirements</h2>
         <div className="space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="p-4 rounded-lg bg-[var(--surface)] border border-[var(--border)]">
-              <p className="font-semibold text-[var(--text)] mb-2">macOS (minimum)</p>
+              <p className="font-semibold text-[var(--text)] mb-2">🍎 macOS (minimum)</p>
               <ul className="text-sm text-[var(--text-muted)] space-y-1">
                 <li>macOS 13 (Ventura) or later</li>
                 <li>Apple Silicon (M1+) or Intel (x86_64)</li>
@@ -78,7 +82,7 @@ export default function DesktopApp() {
               </ul>
             </div>
             <div className="p-4 rounded-lg bg-[var(--surface)] border border-[var(--border)]">
-              <p className="font-semibold text-[var(--text)] mb-2">Windows (minimum)</p>
+              <p className="font-semibold text-[var(--text)] mb-2">🪟 Windows (minimum)</p>
               <ul className="text-sm text-[var(--text-muted)] space-y-1">
                 <li>Windows 10 or later (x64)</li>
                 <li>4 GB RAM minimum, 8 GB recommended</li>
@@ -97,8 +101,10 @@ export default function DesktopApp() {
             </ul>
           </div>
         </div>
+        <Callout type="info" title="Note:">The desktop app is built with Electron. macOS downloads are ~190 MB and Windows downloads are ~93 MB. This is larger than the original Tauri prototype but provides better cross-platform compatibility and Windows support.</Callout>
       </section>
 
+      {/* Download */}
       <section className="mb-10">
         <h2 className="text-2xl font-bold mb-4 text-[var(--text)]">Download</h2>
         <div className="space-y-4 text-[var(--text-muted)] leading-relaxed">
@@ -134,6 +140,7 @@ export default function DesktopApp() {
         </div>
       </section>
 
+      {/* Installation */}
       <section className="mb-10">
         <h2 className="text-2xl font-bold mb-4 text-[var(--text)]">Installation</h2>
 
@@ -186,6 +193,36 @@ export default function DesktopApp() {
         </div>
       </section>
 
+      {/* Onboarding */}
+      <section className="mb-10">
+        <h2 className="text-2xl font-bold mb-4 text-[var(--text)]">First-run onboarding</h2>
+        <div className="space-y-4 text-[var(--text-muted)] leading-relaxed">
+          <p>When you first open the desktop app, you'll walk through 7 quick setup steps:</p>
+          <div className="space-y-3">
+            {[
+              { step: '1', title: 'Welcome', desc: 'Introduction to Lodestone and what it can do.' },
+              { step: '2', title: 'Model Selection', desc: 'Choose your default AI provider: Ollama Cloud (free), Local Ollama, Claude, GPT-4o, or GLM Cloud.' },
+              { step: '3', title: 'Ollama Detect', desc: 'The app checks for a local Ollama installation. If not found, it offers to install it for you and lists available models.' },
+              { step: '4', title: 'Personality', desc: 'Pick your agent\'s personality: Friendly, Professional, Creative, or Precise.' },
+              { step: '5', title: 'Privacy', desc: 'Choose your file access tier: None, Minimal, Standard, or Full.' },
+              { step: '6', title: 'Theme', desc: 'Select Dark, Light, or System theme.' },
+              { step: '7', title: 'Ready', desc: 'You\'re all set — start chatting!' },
+            ].map(s => (
+              <div key={s.step} className="flex gap-4">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-cyan-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-lg shadow-brand-500/20">
+                  {s.step}
+                </div>
+                <div>
+                  <h4 className="font-semibold text-[var(--text)] mb-0.5">{s.title}</h4>
+                  <p className="text-sm text-[var(--text-muted)]">{s.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Command Palette */}
       <section className="mb-10">
         <h2 className="text-2xl font-bold mb-4 text-[var(--text)]">Command Palette</h2>
         <div className="space-y-4 text-[var(--text-muted)] leading-relaxed">
@@ -212,6 +249,7 @@ export default function DesktopApp() {
         </div>
       </section>
 
+      {/* File Access Tiers */}
       <section className="mb-10">
         <h2 className="text-2xl font-bold mb-4 text-[var(--text)]">File Access Tiers</h2>
         <div className="space-y-4 text-[var(--text-muted)] leading-relaxed">
@@ -234,9 +272,11 @@ export default function DesktopApp() {
               </div>
             ))}
           </div>
+          <Callout type="warning" title="Security:">Even at Full Access, Lodestone never reads .ssh, .gnupg, .keychain, or .lodestone directories. Your private keys and credentials are always protected.</Callout>
         </div>
       </section>
 
+      {/* On-site Ollama */}
       <section className="mb-10">
         <h2 className="text-2xl font-bold mb-4 text-[var(--text)]">On-site Ollama</h2>
         <div className="space-y-4 text-[var(--text-muted)] leading-relaxed">
@@ -248,6 +288,7 @@ export default function DesktopApp() {
             <li><strong className="text-[var(--text)]">Model management.</strong> Browse and download models from the Ollama library directly in the app. One click to install.</li>
             <li><strong className="text-[var(--text)]">Background service.</strong> Ollama runs as a background process. Your agent starts instantly.</li>
             <li><strong className="text-[var(--text)]">Hardware-aware.</strong> Lodestone detects your RAM and recommends models that will actually run well.</li>
+            <li><strong className="text-[var(--text)]">Resource management.</strong> Ollama automatically unloads models after 5 minutes of idle time to save memory.</li>
           </ul>
 
           {/* Model recommendation table */}
@@ -293,6 +334,7 @@ export default function DesktopApp() {
         </div>
       </section>
 
+      {/* System tray & background */}
       <section className="mb-10">
         <h2 className="text-2xl font-bold mb-4 text-[var(--text)]">System tray & background behavior</h2>
         <div className="space-y-4 text-[var(--text-muted)] leading-relaxed">
@@ -320,9 +362,24 @@ export default function DesktopApp() {
             <li><strong className="text-[var(--text)]">Auto-start on login.</strong> Enable in Settings → Desktop → "Start Lodestone when I log in." Off by default.</li>
             <li><strong className="text-[var(--text)]">Resource management.</strong> When idle, Lodestone uses minimal CPU and memory. Ollama unloads models after 5 minutes of inactivity.</li>
           </ul>
+
+          <h3 className="text-lg font-semibold text-[var(--text)] mt-6">Keyboard shortcuts</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {[
+              { keys: "Cmd+K / Ctrl+K", desc: "Open command palette" },
+              { keys: "Cmd+Shift+S", desc: "Toggle sidebar" },
+              { keys: "Cmd+= / Cmd+-", desc: "Increase / decrease font size" },
+            ].map(s => (
+              <div key={s.keys} className="flex items-center gap-2 p-2 rounded-lg bg-[var(--surface)] border border-[var(--border)]">
+                <kbd className="px-2 py-0.5 rounded bg-[var(--bg)] border border-[var(--border)] text-xs text-[var(--text)] font-mono">{s.keys}</kbd>
+                <span className="text-xs text-[var(--text-muted)]">{s.desc}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
+      {/* Web vs Desktop */}
       <section className="mb-10">
         <h2 className="text-2xl font-bold mb-4 text-[var(--text)]">Web vs Desktop</h2>
         <div className="overflow-x-auto">
@@ -343,6 +400,10 @@ export default function DesktopApp() {
                 { feature: "Smart greeting", web: "✓", desktop: "✓" },
                 { feature: "File uploads", web: "✓", desktop: "✓" },
                 { feature: "Conversation sharing", web: "✓", desktop: "✓" },
+                { feature: "Personas & custom instructions", web: "✓", desktop: "✓" },
+                { feature: "Voice input & TTS", web: "✓", desktop: "✓" },
+                { feature: "Command palette", web: "✓", desktop: "✓" },
+                { feature: "BYOK (any provider)", web: "✓", desktop: "✓" },
                 { feature: "On-site Ollama", web: "—", desktop: "✓" },
                 { feature: "System tray / always on", web: "—", desktop: "✓" },
                 { feature: "Auto-start on login", web: "—", desktop: "✓" },
@@ -353,7 +414,8 @@ export default function DesktopApp() {
                 { feature: "Sub-agents", web: "—", desktop: "✓" },
                 { feature: "Cloud sync", web: "—", desktop: "✓" },
                 { feature: "Offline mode", web: "—", desktop: "✓" },
-                { feature: "BYOK (any provider)", web: "✓", desktop: "✓" },
+                { feature: "Browser automation", web: "—", desktop: "✓" },
+                { feature: "MCP server connections", web: "—", desktop: "✓" },
               ].map(row => (
                 <tr key={row.feature} className="border-b border-[var(--border)]">
                   <td className="py-2.5 pr-4 text-[var(--text)]">{row.feature}</td>

@@ -44,6 +44,15 @@ export default function Features() {
         <p className="text-[var(--text-muted)] leading-relaxed mt-4">
           Use <code className="px-1.5 py-0.5 rounded bg-[var(--surface)] border border-[var(--border)] text-[var(--cyan)] text-sm">/recall preferences</code> in chat to search your memories instantly.
         </p>
+        <div className="space-y-3 mt-4">
+          <h3 className="text-lg font-semibold text-[var(--text)]">How to use memory</h3>
+          <ol className="list-decimal pl-6 space-y-2 text-[var(--text-muted)]">
+            <li><strong>Just chat naturally.</strong> Mention your name, preferences, projects — your agent stores them automatically.</li>
+            <li><strong>Search with /recall.</strong> Type <code className="px-1.5 py-0.5 rounded bg-[var(--surface)] border border-[var(--border)] text-[var(--cyan)] text-sm">/recall project name</code> to find specific memories.</li>
+            <li><strong>Browse the Memory page.</strong> Click <strong>Memory</strong> in the sidebar to see all stored memories organized by category.</li>
+            <li><strong>Delete what you don't need.</strong> Remove individual memories from the Memory page anytime.</li>
+          </ol>
+        </div>
       </section>
 
       {/* Tasks & Commitments */}
@@ -80,6 +89,16 @@ export default function Features() {
         <p className="text-[var(--text-muted)] leading-relaxed mt-4">
           Create tasks with <code className="px-1.5 py-0.5 rounded bg-[var(--surface)] border border-[var(--border)] text-[var(--cyan)] text-sm">/task</code> or let your agent extract them automatically from conversation.
         </p>
+        <div className="space-y-3 mt-4">
+          <h3 className="text-lg font-semibold text-[var(--text)]">How to use tasks</h3>
+          <ol className="list-decimal pl-6 space-y-2 text-[var(--text-muted)]">
+            <li><strong>Create with /task.</strong> Type <code className="px-1.5 py-0.5 rounded bg-[var(--surface)] border border-[var(--border)] text-[var(--cyan)] text-sm">/task submit the report by Friday</code> to create a tracked commitment with a due date.</li>
+            <li><strong>Natural language.</strong> Just say "I need to follow up with Sarah by tomorrow" — your agent creates the task automatically.</li>
+            <li><strong>View tasks.</strong> Click <strong>Tasks</strong> in the sidebar, or open the Brain page → Tasks tab.</li>
+            <li><strong>Mark complete.</strong> Click the checkmark on any task, or tell your agent "I finished the report."</li>
+            <li><strong>Overdue alerts.</strong> When a task becomes overdue, it appears in your next smart greeting automatically.</li>
+          </ol>
+        </div>
       </section>
 
       {/* File Uploads */}
@@ -116,6 +135,15 @@ I've saved these details to memory. Want me to create tasks for each milestone?"
             </div>
           </div>
         </AppMockup>
+        <div className="space-y-3 mt-4">
+          <h3 className="text-lg font-semibold text-[var(--text)]">How to upload files</h3>
+          <ol className="list-decimal pl-6 space-y-2 text-[var(--text-muted)]">
+            <li><strong>Drag and drop.</strong> Drag any file from your computer into the chat window.</li>
+            <li><strong>Click attach.</strong> Click the paperclip (📎) button next to the input field and select a file.</li>
+            <li><strong>Ask questions.</strong> After uploading, ask your agent to summarize, analyze, or extract data from the file.</li>
+            <li><strong>Facts are stored.</strong> Key information from the file is saved to your knowledge graph automatically.</li>
+          </ol>
+        </div>
         <Callout type="info" title="Pro & Studio:">File uploads and RAG (document search) are available on Pro and Studio tiers. Community tier includes text-only chat.</Callout>
       </section>
 
@@ -148,6 +176,15 @@ I've saved these details to memory. Want me to create tasks for each milestone?"
             </div>
           </div>
         </AppMockup>
+        <div className="space-y-3 mt-4">
+          <h3 className="text-lg font-semibold text-[var(--text)]">How to share a conversation</h3>
+          <ol className="list-decimal pl-6 space-y-2 text-[var(--text-muted)]">
+            <li>Open the conversation you want to share.</li>
+            <li>Click the share icon (🔗) in the chat header.</li>
+            <li>Optionally set an expiration date (7 days, 30 days, or never).</li>
+            <li>Copy the link and send it to anyone — they can view the conversation without signing up.</li>
+          </ol>
+        </div>
         <Callout type="info" title="Pro & Studio:">Conversation sharing is available on Pro and Studio tiers.</Callout>
       </section>
 
@@ -209,19 +246,78 @@ I've saved these details to memory. Want me to create tasks for each milestone?"
         </AppMockup>
       </section>
 
+      {/* Voice & TTS */}
+      <section className="mb-12">
+        <h2 className="text-2xl font-bold mb-4 text-[var(--text)]">🎙️ Voice Input & Text-to-Speech</h2>
+        <p className="text-[var(--text-muted)] leading-relaxed mb-4">
+          Don't want to type? Click the microphone button and speak your message — it appears as text in the input field. Want to hear a response? Click the speaker icon on any message to hear it read aloud.
+        </p>
+        <div className="space-y-3">
+          <h3 className="text-lg font-semibold text-[var(--text)]">How to use voice input</h3>
+          <ol className="list-decimal pl-6 space-y-2 text-[var(--text-muted)]">
+            <li>Click the microphone icon (🎙️) next to the chat input field.</li>
+            <li>Speak your message naturally.</li>
+            <li>The text appears in the input field. Edit if needed, then press Enter.</li>
+          </ol>
+        </div>
+        <div className="space-y-3 mt-4">
+          <h3 className="text-lg font-semibold text-[var(--text)]">How to use text-to-speech</h3>
+          <ol className="list-decimal pl-6 space-y-2 text-[var(--text-muted)]">
+            <li>Hover over any assistant message.</li>
+            <li>Click the speaker icon (🔊) that appears.</li>
+            <li>The message is read aloud. Click again to stop.</li>
+          </ol>
+        </div>
+      </section>
+
+      {/* Personas */}
+      <section className="mb-12">
+        <h2 className="text-2xl font-bold mb-4 text-[var(--text)]">🪪 Personas & Agent Identity</h2>
+        <p className="text-[var(--text-muted)] leading-relaxed mb-4">
+          Customize how your agent behaves. Choose from presets or create your own personas with custom names, personalities, and instructions.
+        </p>
+        <div className="space-y-3">
+          {[
+            { icon: "😊", label: "Avatar Emoji", desc: "Pick from 24 emojis that represent your agent (default: 🪨)" },
+            { icon: "📛", label: "Name", desc: "Give your agent a name it will use to refer to itself" },
+            { icon: "🎭", label: "Personality", desc: "Friendly, Professional, Creative, or Precise" },
+            { icon: "💼", label: "Profession", desc: "8 role presets: Assistant, Developer, Writer, Researcher, Educator, Analyst, Designer, Consultant" },
+            { icon: "🔊", label: "Tone", desc: "Casual, Balanced, or Formal" },
+            { icon: "✍️", label: "Custom Instructions", desc: "Freeform text: 'Always respond in French' or 'Use bullet points'" },
+          ].map(item => (
+            <div key={item.label} className="flex items-start gap-3 p-4 rounded-lg bg-[var(--surface)] border border-[var(--border)]">
+              <span className="text-xl">{item.icon}</span>
+              <div>
+                <p className="font-semibold text-[var(--text)]">{item.label}</p>
+                <p className="text-sm text-[var(--text-muted)]">{item.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <Callout type="info" title="Multiple personas:">Studio tier supports 5 distinct agent identities, each with its own name, personality, and instructions. Switch between them per-conversation.</Callout>
+      </section>
+
       {/* Templates */}
       <section className="mb-12">
         <h2 className="text-2xl font-bold mb-4 text-[var(--text)]">📝 Conversation Templates</h2>
         <p className="text-[var(--text-muted)] leading-relaxed mb-4">
           Start structured conversations with purpose-built templates. Each template pre-configures context, goals, and output format for common tasks.
         </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="space-y-3">
+          <h3 className="text-lg font-semibold text-[var(--text)]">How to start a template</h3>
+          <ol className="list-decimal pl-6 space-y-2 text-[var(--text-muted)]">
+            <li>Type <code className="px-1.5 py-0.5 rounded bg-[var(--surface)] border border-[var(--border)] text-[var(--cyan)] text-sm">/template</code> in the chat input.</li>
+            <li>Choose from the template list (or press <kbd className="px-2 py-0.5 rounded bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] text-sm font-mono">Cmd+K</kbd> and search "template").</li>
+            <li>The conversation starts with pre-set context and goals tailored to the template.</li>
+          </ol>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-6">
           {[
             { icon: "📋", name: "Weekly Review", desc: "Reflect on your week, set next week's priorities" },
             { icon: "💡", name: "Brainstorm", desc: "Free-form ideation with structured output" },
             { icon: "⚖️", name: "Decision", desc: "Work through a decision with pros/cons analysis" },
             { icon: "✏️", name: "Write", desc: "Draft anything — emails, docs, social posts" },
-            { icon: "📧", name: "Email", desc: "Compose and refine professional emails" },
+            { icon: "📧", name: "Email Draft", desc: "Compose and refine professional emails" },
             { icon: "☀️", name: "Daily Brief", desc: "Morning briefing with tasks and priorities" },
           ].map(t => (
             <div key={t.name} className="p-4 rounded-lg bg-[var(--surface)] border border-[var(--border)]">
@@ -235,11 +331,45 @@ I've saved these details to memory. Want me to create tasks for each milestone?"
         </div>
       </section>
 
+      {/* Model Compare */}
+      <section className="mb-12">
+        <h2 className="text-2xl font-bold mb-4 text-[var(--text)]">📊 Model Compare</h2>
+        <p className="text-[var(--text-muted)] leading-relaxed mb-4">
+          Run the same prompt across multiple models side by side. See how GPT-4o, Claude, and Ollama compare on your exact question — all in one view.
+        </p>
+        <div className="space-y-3">
+          <h3 className="text-lg font-semibold text-[var(--text)]">How to use Model Compare</h3>
+          <ol className="list-decimal pl-6 space-y-2 text-[var(--text-muted)]">
+            <li>Start a new chat or open an existing conversation.</li>
+            <li>Click the model selector at the top of the chat.</li>
+            <li>Select "Compare models" and choose which models to compare.</li>
+            <li>Send your message — each model responds in its own column.</li>
+          </ol>
+        </div>
+      </section>
+
+      {/* Conversation Branching */}
+      <section className="mb-12">
+        <h2 className="text-2xl font-bold mb-4 text-[var(--text)]">🌿 Conversation Branching</h2>
+        <p className="text-[var(--text-muted)] leading-relaxed mb-4">
+          Don't like where a conversation is going? Branch from any message to explore a different direction without losing the original thread. Both branches are preserved.
+        </p>
+        <div className="space-y-3">
+          <h3 className="text-lg font-semibold text-[var(--text)]">How to branch a conversation</h3>
+          <ol className="list-decimal pl-6 space-y-2 text-[var(--text-muted)]">
+            <li>Hover over any message in the conversation.</li>
+            <li>Click the branch icon (🌿) or use the message menu.</li>
+            <li>A new branch is created from that point — type your new message.</li>
+            <li>Switch between branches using the branch navigator at the top of the chat.</li>
+          </ol>
+        </div>
+      </section>
+
       {/* Tools & Integrations */}
       <section className="mb-12">
-        <h2 className="text-2xl font-bold mb-4 text-[var(--text)]">🔧 14 Built-in Tools</h2>
+        <h2 className="text-2xl font-bold mb-4 text-[var(--text)]">🔧 14+ Built-in Tools</h2>
         <p className="text-[var(--text-muted)] leading-relaxed mb-4">
-          Your agent can take action, not just talk. 14 integrated tools let it search the web, run code, set reminders, and more — all without leaving the conversation.
+          Your agent can take action, not just talk. 14+ integrated tools let it search the web, run code, set reminders, and more — all without leaving the conversation.
         </p>
         <AppMockup title="Lodestone — Tools">
           <div className="flex" style={{ height: 360 }}>
@@ -264,10 +394,10 @@ Toronto is 17°C, mostly clear skies. I've set a reminder for 3pm to call Sarah.
         </AppMockup>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-6">
           {[
-            { icon: '🔍', name: 'Web Search', desc: 'Search the web for current information' },
+            { icon: '🔍', name: 'Web Search', desc: 'Search the web for current information via private SearXNG' },
             { icon: '🌐', name: 'Web Fetch', desc: 'Read and extract content from any URL' },
             { icon: '🧮', name: 'Calculator', desc: 'Math, trig, statistics expressions' },
-            { icon: '🐍', name: 'Code Execution', desc: 'Run Python or JavaScript code' },
+            { icon: '🐍', name: 'Code Execution', desc: 'Run Python or JavaScript in a sandbox' },
             { icon: '💾', name: 'Save & Search Memory', desc: 'Remember and recall your preferences' },
             { icon: '📋', name: 'Tasks & Commitments', desc: 'Track deadlines and obligations' },
             { icon: '⏰', name: 'Reminders', desc: '"Remind me in 30 minutes" — natural language' },
@@ -311,19 +441,24 @@ Toronto is 17°C, mostly clear skies. I've set a reminder for 3pm to call Sarah.
                 { feature: "Streaming responses", free: "✓", pro: "✓", studio: "✓" },
                 { feature: "Smart greeting", free: "✓", pro: "✓", studio: "✓" },
                 { feature: "Templates", free: "✓", pro: "✓", studio: "✓" },
-                { feature: "Ollama Cloud", free: "✓", pro: "✓", studio: "✓" },
-                { feature: "14 built-in tools", free: "✓", pro: "✓", studio: "✓" },
-                { feature: "Web access", free: "✓", pro: "✓", studio: "✓" },
+                { feature: "Ollama Cloud & GLM Cloud", free: "✓", pro: "✓", studio: "✓" },
+                { feature: "14+ built-in tools", free: "✓", pro: "✓", studio: "✓" },
+                { feature: "Web search", free: "✓", pro: "✓", studio: "✓" },
                 { feature: "Desktop app (Mac & Windows)", free: "✓", pro: "✓", studio: "✓" },
-                { feature: "Bring your own key", free: "✓", pro: "✓", studio: "✓" },
+                { feature: "Bring your own key (BYOK)", free: "✓", pro: "✓", studio: "✓" },
+                { feature: "Voice input & TTS", free: "✓", pro: "✓", studio: "✓" },
+                { feature: "Command palette", free: "✓", pro: "✓", studio: "✓" },
                 { feature: "Claude, GPT-4o, o3, o4-mini", free: "—", pro: "✓", studio: "✓" },
                 { feature: "File uploads & RAG", free: "—", pro: "✓", studio: "✓" },
                 { feature: "Conversation sharing", free: "—", pro: "✓", studio: "✓" },
                 { feature: "Custom instructions", free: "—", pro: "✓", studio: "✓" },
+                { feature: "Personas", free: "—", pro: "✓", studio: "✓" },
                 { feature: "Priority support", free: "—", pro: "✓", studio: "✓" },
                 { feature: "Multiple agent identities", free: "—", pro: "—", studio: "5" },
                 { feature: "API access", free: "—", pro: "—", studio: "✓" },
-                { feature: "Included usage", free: "$5 bonus", pro: "$15/mo", studio: "$40/mo" },
+                { feature: "Browser automation", free: "—", pro: "—", studio: "✓" },
+                { feature: "MCP server connections", free: "—", pro: "—", studio: "✓" },
+                { feature: "Included credits", free: "$5 bonus", pro: "$15/mo", studio: "$40/mo" },
               ].map(row => (
                 <tr key={row.feature} className="border-b border-[var(--border)]">
                   <td className="py-2.5 pr-4 text-[var(--text)]">{row.feature}</td>
