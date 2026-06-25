@@ -46,6 +46,60 @@ jobs:
             cp -r /tmp/lodestone-web-deploy/dist/* /var/www/lodestone/
             rm -rf /tmp/lodestone-web-deploy
 
-      - name: Notify
-        if: always()
-        run: echo "Deploy ${{ job.status }}"
+      - name: Health check
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            curl -sf https://heylodestone.com/api/health || exit 1
+
+  deploy-staging:
+    runs-on: ubuntu-latest
+    if: github.ref == refs/heads/beta
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install and Build
+        run: |
+          npm ci
+          npx vite build
+        env:
+          NODE_OPTIONS: --max-old-space-size=1024
+
+      - name: Deploy staging
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          source: "dist/*"
+          target: "/tmp/lodestone-web-staging"
+
+      - name: Activate staging
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            rm -rf /var/www/lodestone-staging/assets
+            cp -r /tmp/lodestone-web-staging/dist/* /var/www/lodestone-staging/
+            rm -rf /tmp/lodestone-web-staging
+
+      - name: Health check
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            curl -sf https://staging.heylodestone.com/api/health || exit 1
