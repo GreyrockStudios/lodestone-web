@@ -578,6 +578,52 @@ export default function UsageGuide() {
           </div>
 
           <Callout type="info" title="BYOK:">Bring your own API key for any provider and pay nothing to Lodestone. You only pay the provider directly. Works on every tier, including free Community.</Callout>
+
+          <h3 className="text-lg font-semibold text-[var(--text)] mt-8 mb-2">Per-model token pricing</h3>
+          <p className="text-sm text-[var(--text-muted)] mb-4">Costs are deducted from your monthly credits at the rates below. Local Ollama models are always free.</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b border-[var(--border)]">
+                  <th className="text-left py-2 pr-3 text-[var(--text-muted)] font-medium">Provider</th>
+                  <th className="text-left py-2 px-2 text-[var(--text-muted)] font-medium">Model</th>
+                  <th className="text-right py-2 px-2 text-[var(--text-muted)] font-medium">Input / 1M</th>
+                  <th className="text-right py-2 px-2 text-[var(--text-muted)] font-medium">Output / 1M</th>
+                  <th className="text-center py-2 px-2 text-[var(--text-muted)] font-medium">Tier</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  { provider: '\u{1F999} Ollama', model: 'GLM-5.1 Cloud', inputPer1M: '$0.10', outputPer1M: '$0.38', tier: 'All', badge: 'Default' },
+                  { provider: '\u{1F999} Ollama', model: 'Llama 3', inputPer1M: '$0.10', outputPer1M: '$0.38', tier: 'All', badge: '' },
+                  { provider: '\u{1F999} Ollama', model: 'Mistral', inputPer1M: '$0.10', outputPer1M: '$0.38', tier: 'All', badge: '' },
+                  { provider: '\u{1F7E2} OpenAI', model: 'GPT-4o-mini', inputPer1M: '$0.08', outputPer1M: '$0.33', tier: 'Pro+', badge: '' },
+                  { provider: '\u{1F7E2} OpenAI', model: 'GPT-4o', inputPer1M: '$2.75', outputPer1M: '$11.00', tier: 'Pro+', badge: '' },
+                  { provider: '\u{1F7E2} OpenAI', model: 'o1-mini', inputPer1M: '$3.30', outputPer1M: '$13.20', tier: 'Pro+', badge: '' },
+                  { provider: '\u{1F7E2} OpenAI', model: 'o1', inputPer1M: '$16.50', outputPer1M: '$66.00', tier: 'Pro+', badge: '' },
+                  { provider: '\u{1F7E3} Anthropic', model: 'Claude Haiku 4.5', inputPer1M: '$1.10', outputPer1M: '$5.50', tier: 'Pro+', badge: '' },
+                  { provider: '\u{1F7E3} Anthropic', model: 'Claude Sonnet 4', inputPer1M: '$3.30', outputPer1M: '$16.50', tier: 'Pro+', badge: '' },
+                  { provider: '\u{1F7E3} Anthropic', model: 'Claude Opus 4', inputPer1M: '$5.50', outputPer1M: '$27.50', tier: 'Pro+', badge: '' },
+                ].map((row, i) => (
+                  <tr key={i} className={i % 2 === 0 ? 'bg-[var(--surface)]' : ''}>
+                    <td className="py-2 pr-3 text-[var(--text)] font-medium">{row.provider}</td>
+                    <td className="py-2 px-2 text-[var(--text)]">
+                      {row.model}
+                      {row.badge && <span className="ml-1.5 inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-green-500/20 text-green-400 border border-green-500/30">{row.badge}</span>}
+                    </td>
+                    <td className="text-right py-2 px-2 font-mono text-[var(--text-muted)]">{row.inputPer1M}</td>
+                    <td className="text-right py-2 px-2 font-mono text-[var(--text-muted)]">{row.outputPer1M}</td>
+                    <td className="text-center py-2 px-2 text-[var(--text-muted)]">{row.tier}</td>
+                  </tr>
+                ))}
+                <tr className="border-t border-[var(--border)]">
+                  <td colSpan={5} className="py-2 text-xs text-[var(--text-dim)] text-center">
+                    1M = 1 million tokens. ~1 token = 4 characters. Local Ollama models are free. BYOK users pay the provider directly — zero Lodestone charges.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </section>
 
