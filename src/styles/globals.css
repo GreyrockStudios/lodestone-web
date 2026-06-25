@@ -1,0 +1,391 @@
+@import "katex/dist/katex.min.css";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #080810;
+  --surface: #0f0f1a;
+  --surface-2: #161625;
+  --border: #1e1e35;
+  --brand: #8B5CF6;
+  --brand-light: #a78bfa;
+  --cyan: #06B6D4;
+  --text: #f0f0ff;
+  --text-muted: #9CA3AF;
+  --text-dim: #6B7280;
+  --success: #10B981;
+  --danger: #EF4444;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+::selection { background: var(--brand); color: #fff; }
+
+a { color: var(--cyan); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+input:focus, button:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Mobile responsive utilities */
+@layer utilities {
+  /* Prevent iOS zoom on input focus */
+  @media (max-width: 767px) {
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="search"],
+    select,
+    textarea {
+      font-size: 16px;
+    }
+  }
+}
+
+/* Touch target sizes for mobile */
+@media (max-width: 767px) {
+  button, a, [role="button"] {
+    min-height: 44px;
+  }
+}
+
+/* Safe area for notched devices */
+@supports(padding: max(0px)) {
+  body {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Chat markdown content responsive */
+.prose-chat img {
+  max-width: 100%;
+  height: auto;
+}
+
+.prose-chat pre {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.prose-chat table {
+  display: block;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ===== Desktop App Styles ===== */
+/* Only apply overflow:hidden when running inside Tauri */
+html.is-tauri {
+  overscroll-behavior: none;
+  overflow: hidden;
+}
+
+html.is-tauri body {
+  overscroll-behavior: none;
+  overflow: hidden;
+  height: 100vh;
+}
+
+html.is-tauri #root {
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Prevent text selection on UI elements */
+button, [role="button"], nav, header, .sidebar, .no-select {
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
+}
+
+/* Make interactive elements have proper cursors */
+a, button, [role="button"], [tabindex="0"] {
+  cursor: pointer;
+}
+
+/* Smooth page transitions */
+.page-enter {
+  animation: pageSlideIn 0.2s ease-out;
+}
+
+@keyframes pageSlideIn {
+  from { opacity: 0; transform: translateX(8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* Chat message animation */
+.msg-enter {
+  animation: msgIn 0.15s ease-out;
+}
+
+@keyframes msgIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Loading skeleton */
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 50%, var(--surface-2) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 6px;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Focus ring for keyboard navigation */
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+/* Remove default focus for mouse users */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Scrollable areas */
+.scroll-area {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Drag region for title bar (Tauri) */
+.titlebar-drag {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.titlebar-no-drag {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+/* ===== Slide Panel Animations ===== */
+.slide-panel-backdrop {
+  animation: fadeInBackdrop 200ms ease-out forwards;
+}
+
+@keyframes fadeInBackdrop {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.slide-panel-container {
+  animation: slideInRight 300ms ease-out forwards;
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+/* Mobile: Slide panel becomes bottom sheet */
+@media (max-width: 640px) {
+  .slide-panel-container {
+    top: auto !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 85vh !important;
+    border-left: none !important;
+    border-top: 1px solid var(--border) !important;
+    border-radius: 16px 16px 0 0 !important;
+    box-shadow: 0 -4px 32px rgba(0,0,0,0.5) !important;
+    animation: slideUpMobile 300ms ease-out forwards !important;
+  }
+
+  @keyframes slideUpMobile {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+}
+
+/* Prevent text selection on sidebar icons */
+.sidebar-icon {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* ===== Chat UX Polish ===== */
+
+/* Better scrollbar for chat area */
+.chat-scroll::-webkit-scrollbar { width: 6px; }
+.chat-scroll::-webkit-scrollbar-track { background: transparent; }
+.chat-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+.chat-scroll::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+/* Code block styling */
+.code-block-wrapper pre {
+  margin: 0 !important;
+  padding: 12px 16px !important;
+  font-size: 13px !important;
+  line-height: 1.6 !important;
+  overflow-x: auto;
+}
+
+.code-block-wrapper code {
+  font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', 'Cascadia Code', monospace !important;
+  font-size: 13px !important;
+}
+
+/* Prose code (inline) */
+.prose code:not(pre code) {
+  background: var(--bg);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  border: 1px solid var(--border);
+}
+
+/* Message fade-slide animation */
+.animate-fade-slide {
+  animation: fadeSlideUp 0.2s ease-out;
+}
+
+/* Better link styling in chat */
+.prose a {
+  color: var(--cyan);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.15s;
+}
+.prose a:hover {
+  border-bottom-color: var(--cyan);
+}
+
+/* List styling in chat */
+.prose ul, .prose ol {
+  padding-left: 1.5em;
+  margin: 0.5em 0;
+}
+.prose li {
+  margin: 0.25em 0;
+}
+
+/* Scroll to bottom button */
+.scroll-bottom-btn {
+  transition: all 0.2s ease;
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+}
+.scroll-bottom-btn.visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+/* Tooltip utility */
+[title] {
+  position: relative;
+}
+
+/* Focus-visible for keyboard nav */
+button:focus-visible, a:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Smooth text selection */
+::selection {
+  background: rgba(139, 92, 246, 0.3);
+}
+
+/* Better input styling */
+textarea:focus, input[type="text"]:focus, input[type="search"]:focus {
+  border-color: var(--brand) !important;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+}
+
+/* Reduce motion for prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ─── Markdown Rendering ─── */
+.markdown-body .katex-display { overflow-x: auto; overflow-y: hidden; padding: 0.5rem 0; }
+.markdown-body .katex { font-size: 1em; }
+
+/* ─── Code Highlighting ─── */
+.hljs { background: transparent !important; padding: 1rem !important; }
+pre code.hljs { border-radius: 0; }
+
+/* ─── Mobile Responsive ─── */
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+.safe-top { padding-top: env(safe-area-inset-top, 0px); }
+
+@media (max-width: 768px) {
+  .chat-message { max-width: 100% !important; }
+  .chat-input-area { flex-direction: column; }
+  .chat-input-area > button { align-self: flex-end; }
+}
+
+/* ─── Print styles ─── */
+@media print {
+  .no-print { display: none !important; }
+  .chat-message { break-inside: avoid; }
+}
+
+/* ─── Scrollbar polish ─── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border, #333); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-dim, #666); }
+
+/* ─── Focus visible ─── */
+*:focus-visible { outline: 2px solid var(--brand, #6366f1); outline-offset: 2px; border-radius: 4px; }
+
+/* ─── Reduced motion ─── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
+
+/* ─── Selection ─── */
+::selection { background: var(--brand, #6366f1); color: white; }
+
+/* ─── Preferences ─── */
+.message-content { font-family: var(--message-font, 'Inter', -apple-system, BlinkMacSystemFont, sans-serif); }
+.compact-mode .message-bubble { padding: var(--chat-padding, 12px) !important; }
+.compact-mode .chat-messages > * + * { margin-top: var(--msg-gap, 4px) !important; }

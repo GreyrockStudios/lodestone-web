@@ -1,0 +1,909 @@
+import { useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../hooks/useAuth'
+import { Eye, EyeOff, Key, ExternalLink, CreditCard, HardDrive, AlertTriangle, Plus, Trash2, X, ChevronLeft, Shield, Clock, Cpu, FileText, Bell } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { formatCreditsShort, formatPricing } from '../lib/credits'
+import type { ProviderRate, CreditUsage } from '../lib/credits'
+
+const PROVIDERS = [
+  { id: 'ollama', name: 'Ollama Cloud', icon: '🦙' },
+  { id: 'anthropic', name: 'Anthropic', icon: '🟣' },
+  { id: 'openai', name: 'OpenAI', icon: '🟢' },
+] as const
+
+const MODELS = [
+  { id: 'glm-5.1:cloud', name: 'GLM 5.1 (Balanced)', provider: 'Ollama Cloud' },
+  { id: 'glm-5.2:cloud', name: 'GLM 5.2 (Powerful)', provider: 'Ollama Cloud' },
+  { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', provider: 'Ollama Cloud' },
+  { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash (Fast)', provider: 'Ollama Cloud' },
+  { id: 'qwen3.5', name: 'Qwen 3.5', provider: 'Ollama Cloud' },
+  { id: 'gemma4', name: 'Gemma 4', provider: 'Ollama Cloud' },
+]
+
+const CREDIT_PACKS = [
+  { credits: 500, price: '$5', label: '$5' },
+  { credits: 1000, price: '$10', label: '$10' },
+  { credits: 2000, price: '$20', label: '$20' },
+  { credits: 5000, price: '$50', label: '$50' },
+]
+
+const tierInfo: Record<string, { name: string; color: string; bgColor: string; description: string }> = {
+  free: { name: 'Community', color: 'text-gray-400', bgColor: 'bg-gray-500/20', description: 'Desktop · Brain · Ollama · $5 bonus' },
+  pro: { name: 'Pro', color: 'text-brand-400', bgColor: 'bg-brand-500/20', description: 'All providers · Web · Tools · $15/mo' },
+  studio: { name: 'Studio', color: 'text-cyan-400', bgColor: 'bg-cyan-500/20', description: '5 agents · RAG · API · $40/mo' },
+  enterprise: { name: 'Enterprise', color: 'text-purple-400', bgColor: 'bg-purple-500/20', description: 'Unlimited · Custom · Priority' },
+}
+
+const DEFAULT_PRICING: Record<string, { input: number; output: number }> = {
+  ollama: { input: 0.08, output: 0.34 },
+  anthropic: { input: 3.15, output: 15.75 },
+  openai: { input: 2.63, output: 10.50 },
+}
+
+// ─── Identity constants ───
+const EMOJIS = ['🪨', '🤖', '🧠', '💡', '🔮', '✨', '🦊', '🎯', '📚', '🎭', '🧙♂️', '🎓', '💻', '🎨', '🔬', '📊', '🌍', '⚡', '🔥', '🌟', '💎', '🎪', '🦋', '🐺']
+const PERSONALITY_PRESETS: Record<string, { label: string; desc: string; text: string }> = {
+  friendly: { label: 'Friendly', desc: 'Warm, approachable, casual', text: "You're warm, approachable, and casual. Use contractions, occasional humor, and keep things light." },
+  professional: { label: 'Professional', desc: 'Formal, precise, efficient', text: "You're formal, precise, and efficient. Avoid slang, be direct, and prioritize accuracy." },
+  creative: { label: 'Creative', desc: 'Imaginative, expressive, vivid', text: "You're imaginative and expressive. Use vivid language, metaphors, and think outside the box." },
+  concise: { label: 'Concise', desc: 'Brief, direct, no fluff', text: "You're brief and to the point. Give short, direct answers. No fluff." },
+  detailed: { label: 'Detailed', desc: 'Thorough, comprehensive, contextual', text: "You're thorough and comprehensive. Explain fully, provide context, and leave nothing out." },
+}
+const PROFESSION_CARDS = [
+  { id: 'assistant', emoji: '🤝', label: 'Assistant', desc: 'General purpose helper' },
+  { id: 'developer', emoji: '💻', label: 'Developer', desc: 'Code & technical help' },
+  { id: 'writer', emoji: '✍️', label: 'Writer', desc: 'Content & copy' },
+  { id: 'researcher', emoji: '🔬', label: 'Researcher', desc: 'Analysis & insights' },
+  { id: 'educator', emoji: '🎓', label: 'Educator', desc: 'Teaching & explanations' },
+  { id: 'analyst', emoji: '📊', label: 'Analyst', desc: 'Data & strategy' },
+  { id: 'designer', emoji: '🎨', label: 'Designer', desc: 'Visual & UX' },
+  { id: 'consultant', emoji: '💼', label: 'Consultant', desc: 'Strategy & advice' },
+]
+const TONE_OPTIONS = [
+  { value: 'casual', label: 'Casual', emoji: '😎' },
+  { value: 'balanced', label: 'Balanced', emoji: '⚖️' },
+  { value: 'formal', label: 'Formal', emoji: '🎩' },
+]
+
+// ─── File access tier descriptions ───
+const FILE_TIERS = [
+  { id: 'none', label: 'No Access', icon: '🔒', desc: 'No file access — the agent cannot read or write any files' },
+  { id: 'minimal', label: 'Minimal', icon: '👁️', desc: 'Read-only access to Desktop, Documents, and Downloads' },
+  { id: 'standard', label: 'Standard', icon: '📂', desc: 'Read/write your home folder. Blocks .ssh, .gnupg, .keychain. Default.' },
+  { id: 'full', label: 'Full Access', icon: '🔓', desc: 'Full filesystem access. Blocks only .ssh, .gnupg, .keychain, .lodestone. Use with caution.' },
+]
+
+// ─── Desktop detection ───
+const isDesktop = typeof window !== 'undefined' && (!!(window as any).__TAURI__ || !!(window as any).__TAURI_INTERNALS__ || !!(window as any).electronAPI)
+
+interface StorageUsage { used: number; limit: number; breakdown?: { conversations: number; memories: number; files: number } }
+interface ApiKey { id: string; provider: string; label?: string; keyPreview: string; createdAt: string }
+interface IdentityData { name: string; profession: string; personality: string; tone: string; custom_instructions: string; avatar_emoji: string }
+
+type TabId = 'profile' | 'identity' | 'appearance' | 'subscription' | 'usage' | 'apikeys' | 'desktop' | 'storage' | 'danger'
+
+const TABS: { id: TabId; label: string; icon: string }[] = [
+  { id: 'profile', label: 'Profile', icon: '👤' },
+  { id: 'identity', label: 'Agent Identity', icon: '🧠' },
+  { id: 'appearance', label: 'Appearance', icon: '🎨' },
+  { id: 'subscription', label: 'Subscription', icon: '💳' },
+  { id: 'usage', label: 'Usage', icon: '📊' },
+  { id: 'apikeys', label: 'API Keys', icon: '🔑' },
+  ...(isDesktop ? [{ id: 'desktop' as TabId, label: 'Desktop', icon: '🖥️' }] : []),
+  { id: 'storage', label: 'Storage', icon: '💾' },
+  { id: 'danger', label: 'Danger Zone', icon: '⚠️' },
+]
+
+export default function Settings() {
+  const { user, accessToken } = useAuth()
+  const navigate = useNavigate()
+  const [activeTab, setActiveTab] = useState<TabId>('profile')
+  const [displayName, setDisplayName] = useState(user?.displayName || '')
+  const [apiKey, setApiKey] = useState(localStorage.getItem('lodestone_api_key') || '')
+  const [model, setModel] = useState(localStorage.getItem('lodestone_model') || 'glm-5.1:cloud')
+  const [showKey, setShowKey] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [storage, setStorage] = useState<StorageUsage | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
+
+  // API Keys state
+  const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
+  const [loadingKeys, setLoadingKeys] = useState(true)
+  const [showAddKey, setShowAddKey] = useState(false)
+  const [newKeyProvider, setNewKeyProvider] = useState('anthropic')
+  const [newKeyValue, setNewKeyValue] = useState('')
+  const [newKeyLabel, setNewKeyLabel] = useState('')
+  const [newKeyVisible, setNewKeyVisible] = useState(false)
+  const [savingKey, setSavingKey] = useState(false)
+  const [keyError, setKeyError] = useState<string | null>(null)
+  const [removingKeyId, setRemovingKeyId] = useState<string | null>(null)
+
+  // Credit usage
+  const [creditUsage, setCreditUsage] = useState<CreditUsage | null>(null)
+  const [providerRates, setProviderRates] = useState<ProviderRate[]>([])
+  const [loadingUsage, setLoadingUsage] = useState(true)
+
+  // Preferences
+  const [prefs, setPrefs] = useState({ theme: 'dark', font_size: 'medium', message_font: 'sans', send_on_enter: true, show_timestamps: true, compact_mode: false, language: 'en', sidebar_collapsed: false })
+  const [prefsSaving, setPrefsSaving] = useState(false)
+
+  // Identity state
+  const [identity, setIdentity] = useState<IdentityData>({ name: '', profession: '', personality: '', tone: 'balanced', custom_instructions: '', avatar_emoji: '🪨' })
+  const [originalIdentity, setOriginalIdentity] = useState<IdentityData>({ ...identity })
+  const [identityLoading, setIdentityLoading] = useState(true)
+  const [identitySaving, setIdentitySaving] = useState(false)
+  const [identitySaved, setIdentitySaved] = useState(false)
+  const [identityError, setIdentityError] = useState('')
+
+  // Desktop: File tier
+  const [fileTier, setFileTier] = useState<string>('standard')
+  const [fileTierLoading, setFileTierLoading] = useState(isDesktop)
+
+  // Desktop: Ollama
+  const [ollamaStatus, setOllamaStatus] = useState<{ installed: boolean; version: string } | null>(null)
+  const [ollamaModels, setOllamaModels] = useState<{ name: string; size: string }[]>([])
+
+  // Desktop: Scheduler
+  const [scheduledTasks, setScheduledTasks] = useState<any[]>([])
+  const [schedulerPresets, setSchedulerPresets] = useState<any[]>([])
+  const [schedulerTaskTypes, setSchedulerTaskTypes] = useState<any[]>([])
+  const [showCreateTask, setShowCreateTask] = useState(false)
+  const [newTaskName, setNewTaskName] = useState('')
+  const [newTaskType, setNewTaskType] = useState('reminder')
+  const [newTaskPreset, setNewTaskPreset] = useState('daily_morning')
+  const [newTaskMessage, setNewTaskMessage] = useState('')
+  const [taskCreating, setTaskCreating] = useState(false)
+
+  const tier = user?.tier || 'free'
+  const info = tierInfo[tier] || tierInfo.free
+  const hasKey = !!localStorage.getItem('lodestone_api_key')
+
+  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000) }
+
+  const token = accessToken || localStorage.getItem('lodestone_access_token')
+
+  // ─── Fetch storage ───
+  useEffect(() => {
+    if (!token) return
+    fetch('/api/storage/usage', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null).then(setStorage).catch(() => {})
+  }, [token])
+
+  // ─── Fetch API keys ───
+  const loadKeys = useCallback(() => {
+    if (!token) { setLoadingKeys(false); return }
+    fetch('/api/keys', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : { keys: [] })
+      .then(data => { setApiKeys(data.keys || []); setLoadingKeys(false) })
+      .catch(() => { setApiKeys([]); setLoadingKeys(false) })
+  }, [token])
+  useEffect(() => { loadKeys() }, [loadKeys])
+
+  // ─── Fetch credit usage ───
+  const loadUsage = useCallback(() => {
+    if (!token) { setLoadingUsage(false); return }
+    const load = async () => {
+      try {
+        let res = await fetch('/api/usage/credits', { headers: { Authorization: `Bearer ${token}` } })
+        if (res.ok) { setCreditUsage(await res.json()); setLoadingUsage(false); return }
+        res = await fetch('/api/usage/tokens', { headers: { Authorization: `Bearer ${token}` } })
+        if (res.ok) setCreditUsage(await res.json())
+      } catch {}
+      setLoadingUsage(false)
+    }
+    load()
+  }, [token])
+  useEffect(() => { loadUsage() }, [loadUsage])
+
+  // ─── Fetch provider rates ───
+  useEffect(() => {
+    if (!token) return
+    fetch('/api/usage/provider-rates', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.providers) setProviderRates(data.providers) })
+      .catch(() => {})
+  }, [token])
+
+  // ─── Fetch preferences ───
+  useEffect(() => {
+    if (!token) return
+    fetch('/api/user/me/preferences', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(d => { if (d.preferences) setPrefs(d.preferences) })
+      .catch(() => {})
+  }, [token])
+
+  // ─── Fetch identity ───
+  useEffect(() => {
+    if (!token) { setIdentityLoading(false); return }
+    fetch('/api/identity', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => {
+        const id = { name: data.name || '', profession: data.profession || '', personality: data.personality || '', tone: data.tone || 'balanced', custom_instructions: data.custom_instructions || '', avatar_emoji: data.avatar_emoji || '🪨' }
+        setIdentity(id); setOriginalIdentity({ ...id })
+      })
+      .catch(() => {})
+      .finally(() => setIdentityLoading(false))
+  }, [token])
+
+  // ─── Desktop: File tier ───
+  useEffect(() => {
+    if (!isDesktop) return
+    const api = (window as any).electronAPI
+    if (!api?.tools?.getFileTier) return
+    api.tools.getFileTier().then((r: any) => { setFileTier(r.tier); setFileTierLoading(false) }).catch(() => setFileTierLoading(false))
+  }, [])
+
+  // ─── Desktop: Ollama ───
+  useEffect(() => {
+    if (!isDesktop) return
+    const api = (window as any).electronAPI
+    if (!api?.ollamaCheck) return
+    api.ollamaCheck().then((r: any) => { setOllamaStatus(r); if (r.installed) return api.ollamaListModels() }).then((r: any) => { if (r) setOllamaModels(r) }).catch(() => {})
+  }, [])
+
+  // ─── Desktop: Scheduler ───
+  const loadTasks = useCallback(() => {
+    if (!isDesktop) return
+    const api = (window as any).electronAPI
+    if (!api?.scheduler) return
+    Promise.all([api.scheduler.list(), api.scheduler.listPresets(), api.scheduler.listTaskTypes()])
+      .then(([tasks, presets, types]) => { setScheduledTasks(tasks || []); setSchedulerPresets(presets || []); setSchedulerTaskTypes(types || []) })
+      .catch(() => {})
+  }, [])
+  useEffect(() => { loadTasks() }, [loadTasks])
+
+  // ─── Handlers ───
+  const updatePref = async (key: string, value: any) => {
+    setPrefs(p => ({ ...p, [key]: value }))
+    if (!token) return
+    setPrefsSaving(true)
+    try { await fetch('/api/user/me/preferences', { method: 'PATCH', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ [key]: value }) }) } catch {}
+    setPrefsSaving(false)
+  }
+
+  const handleSaveProfile = async () => {
+    setSaving(true)
+    try {
+      await fetch('/api/user/me', { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ displayName }) })
+      setSaved(true); setTimeout(() => setSaved(false), 2000)
+    } catch {}
+    setSaving(false)
+  }
+
+  const handleSaveApiKey = () => {
+    if (apiKey) localStorage.setItem('lodestone_api_key', apiKey); else localStorage.removeItem('lodestone_api_key')
+    localStorage.setItem('lodestone_model', model)
+    setSaved(true); setTimeout(() => setSaved(false), 2000)
+  }
+
+  const handleAddKey = async () => {
+    if (!newKeyValue.trim()) return
+    setSavingKey(true); setKeyError(null)
+    try {
+      const res = await fetch('/api/keys', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ provider: newKeyProvider, key: newKeyValue.trim(), label: newKeyLabel.trim() || undefined }) })
+      if (!res.ok) { const data = await res.json().catch(() => ({})); setKeyError(data.error || 'Failed to add key'); return }
+      setShowAddKey(false); setNewKeyValue(''); setNewKeyLabel(''); setNewKeyProvider('anthropic')
+      loadKeys(); loadUsage(); showToast('API key added successfully')
+    } catch { setKeyError('Connection error. Please try again.') }
+    finally { setSavingKey(false) }
+  }
+
+  const handleRemoveKey = async (keyId: string) => {
+    setRemovingKeyId(keyId)
+    try { await fetch(`/api/keys/${keyId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }); loadKeys(); loadUsage(); showToast('API key removed') } catch { showToast('Failed to remove key') }
+    setRemovingKeyId(null)
+  }
+
+  const handleSaveIdentity = async () => {
+    setIdentitySaving(true); setIdentityError('')
+    try {
+      const res = await fetch('/api/identity', { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(identity) })
+      if (!res.ok) throw new Error('Failed to save identity')
+      setOriginalIdentity({ ...identity }); setIdentitySaved(true); setTimeout(() => setIdentitySaved(false), 3000)
+    } catch (err: any) { setIdentityError(err.message) }
+    finally { setIdentitySaving(false) }
+  }
+
+  const handleSetFileTier = async (tierId: string) => {
+    if (!isDesktop) return
+    const api = (window as any).electronAPI
+    if (!api?.tools?.setFileTier) return
+    setFileTier(tierId)
+    try { await api.tools.setFileTier(tierId); showToast(`File access set to ${tierId}`) } catch { showToast('Failed to set file tier') }
+  }
+
+  const handleCreateTask = async () => {
+    if (!newTaskName.trim()) return
+    setTaskCreating(true)
+    try {
+      const api = (window as any).electronAPI
+      await api.scheduler.create({ name: newTaskName, task_type: newTaskType, preset_id: newTaskPreset, message: newTaskMessage })
+      setShowCreateTask(false); setNewTaskName(''); setNewTaskMessage(''); setNewTaskType('reminder'); setNewTaskPreset('daily_morning')
+      loadTasks(); showToast('Task created')
+    } catch { showToast('Failed to create task') }
+    finally { setTaskCreating(false) }
+  }
+
+  const handleTaskAction = async (action: 'pause' | 'resume' | 'delete', id: string) => {
+    const api = (window as any).electronAPI
+    if (!api?.scheduler) return
+    try {
+      if (action === 'pause') await api.scheduler.pause(id)
+      else if (action === 'resume') await api.scheduler.resume(id)
+      else if (action === 'delete') await api.scheduler.delete(id)
+      loadTasks()
+      showToast(action === 'delete' ? 'Task deleted' : action === 'pause' ? 'Task paused' : 'Task resumed')
+    } catch { showToast('Failed') }
+  }
+
+  // ─── Helpers ───
+  const getPricing = (providerId: string) => {
+    const r = providerRates.find(r => r.provider === providerId && r.isDefault)
+    return r ? { input: r.inputPer1M, output: r.outputPer1M } : DEFAULT_PRICING[providerId] || { input: 1, output: 1 }
+  }
+  const hasByKey = (providerId: string) => apiKeys.some(k => k.provider === providerId) || (providerId === 'ollama' && !!apiKey)
+  const getProviderName = (id: string) => PROVIDERS.find(p => p.id === id)?.name || id
+  const getProviderIcon = (id: string) => PROVIDERS.find(p => p.id === id)?.icon || '🔑'
+  const formatBytes = (b: number) => { if (b === 0) return '0 B'; const k = 1024; const s = ['B','KB','MB','GB']; const i = Math.floor(Math.log(b)/Math.log(k)); return parseFloat((b/Math.pow(k,i)).toFixed(1))+' '+s[i] }
+  const storagePercent = storage ? Math.min((storage.used / storage.limit) * 100, 100) : 0
+  const storageColor = storagePercent > 90 ? '#EF4444' : storagePercent > 70 ? '#F59E0B' : '#10B981'
+  const usagePercent = creditUsage ? (creditUsage.monthlyCredits === -1 ? 0 : (creditUsage.creditsUsed / creditUsage.monthlyCredits) * 100) : 0
+  const usageBarColor = usagePercent > 90 ? '#EF4444' : usagePercent > 70 ? '#F59E0B' : '#10B981'
+  const hasIdentityChanges = JSON.stringify(identity) !== JSON.stringify(originalIdentity)
+  const activePreset = Object.entries(PERSONALITY_PRESETS).find(([_, v]) => v.text === identity.personality)?.[0]
+  const isFreeTier = tier === 'free'
+
+  return (
+    <div className="min-h-screen bg-[var(--bg)] flex flex-col">
+      {/* Toast */}
+      {toast && <div className="fixed top-4 right-4 z-50 px-4 py-2 rounded-lg bg-brand-500/20 border border-brand-500/30 text-brand-400 text-sm font-medium animate-fade-in">{toast}</div>}
+      {saved && !toast && <div className="fixed top-4 right-4 z-50 px-4 py-2 rounded-lg bg-green-500/20 border border-green-500/30 text-green-400 text-sm font-medium animate-fade-in">✓ Saved</div>}
+
+      {/* Header */}
+      <header className="flex items-center gap-3 px-4 md:px-6 py-4 border-b border-[var(--border)] bg-[var(--surface)] flex-shrink-0">
+        <button onClick={() => navigate('/chat')} className="p-2 rounded-lg text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface-2)] transition-colors" title="Back to chat">
+          <ChevronLeft className="w-5 h-5" />
+        </button>
+        <h1 className="text-xl font-bold text-[var(--text)]">Settings</h1>
+      </header>
+
+      {/* Body: sidebar tabs + content */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Tab sidebar */}
+        <nav className="w-[200px] flex-shrink-0 border-r border-[var(--border)] bg-[var(--surface)] overflow-y-auto hidden md:block">
+          <div className="p-2 space-y-0.5">
+            {TABS.map(tab => (
+              <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+                  activeTab === tab.id ? 'bg-brand-500/15 text-brand-400 font-medium' : 'text-[var(--text-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--text)]'
+                }`}>
+                <span className="text-base">{tab.icon}</span>
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </nav>
+
+        {/* Mobile tab bar */}
+        <div className="md:hidden flex gap-1 overflow-x-auto px-2 py-2 border-b border-[var(--border)] bg-[var(--surface)] flex-shrink-0">
+          {TABS.map(tab => (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+              className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${
+                activeTab === tab.id ? 'bg-brand-500 text-white' : 'text-[var(--text-muted)] hover:bg-[var(--surface-2)]'
+              }`}>
+              {tab.icon} {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-4 md:p-6">
+          <div className="max-w-3xl mx-auto space-y-6">
+
+            {/* ─── PROFILE ─── */}
+            {activeTab === 'profile' && (
+              <div className="space-y-6 animate-fade-in">
+                <h2 className="text-lg font-semibold">Profile</h2>
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6 space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Display name</label>
+                    <input type="text" value={displayName} onChange={e => setDisplayName(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] focus:border-brand-500 outline-none text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Email</label>
+                    <input type="email" value={user?.email || ''} disabled
+                      className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-dim)] text-sm cursor-not-allowed" />
+                  </div>
+                  <button onClick={handleSaveProfile} disabled={saving}
+                    className="px-4 py-2 rounded-lg bg-brand-500 hover:bg-brand-600 text-white font-medium text-sm transition-colors disabled:opacity-50">
+                    {saving ? 'Saving...' : 'Save changes'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ─── IDENTITY ─── */}
+            {activeTab === 'identity' && (
+              <div className="space-y-6 animate-fade-in">
+                <div>
+                  <h2 className="text-lg font-semibold">Agent Identity</h2>
+                  <p className="text-sm text-[var(--text-muted)] mt-1">Customize how your Lodestone agent looks and behaves</p>
+                </div>
+
+                {identityLoading ? (
+                  <div className="text-center py-8 text-[var(--text-muted)] animate-pulse">Loading...</div>
+                ) : (
+                  <>
+                    {/* Preview Card */}
+                    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
+                      <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 rounded-2xl bg-brand-500/20 flex items-center justify-center text-3xl flex-shrink-0">{identity.avatar_emoji}</div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-lg font-semibold text-[var(--text)]">{identity.name || 'Unnamed Agent'}</h3>
+                          <div className="flex items-center gap-2 mt-1 flex-wrap">
+                            {identity.profession && <span className="text-sm text-[var(--text-muted)] capitalize">{PROFESSION_CARDS.find(p => p.id === identity.profession)?.emoji} {identity.profession}</span>}
+                            {identity.tone && <span className="px-2 py-0.5 rounded text-xs font-medium border bg-cyan-500/20 text-cyan-400 border-cyan-500/30 capitalize">{identity.tone}</span>}
+                          </div>
+                        </div>
+                      </div>
+                      {identity.personality && <p className="mt-3 text-sm text-[var(--text-muted)] line-clamp-2">{identity.personality}</p>}
+                    </div>
+
+                    {/* Emoji Picker */}
+                    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6">
+                      <label className="block text-sm font-medium text-[var(--text)] mb-3">Agent Emoji</label>
+                      <div className="grid grid-cols-8 gap-2">
+                        {EMOJIS.map(emoji => (
+                          <button key={emoji} onClick={() => setIdentity(prev => ({ ...prev, avatar_emoji: emoji }))}
+                            className={`w-10 h-10 rounded-xl text-xl flex items-center justify-center transition-all ${
+                              identity.avatar_emoji === emoji ? 'bg-brand-500/20 border-2 border-brand-500 scale-110' : 'bg-[var(--bg)] border border-[var(--border)] hover:border-brand-500/50'
+                            }`}>{emoji}</button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Name */}
+                    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6">
+                      <label className="block text-sm font-medium text-[var(--text)] mb-2">Agent Name</label>
+                      <input type="text" value={identity.name} onChange={e => setIdentity(prev => ({ ...prev, name: e.target.value }))}
+                        placeholder="e.g. Nova, Atlas, Sage..." maxLength={50}
+                        className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] focus:border-brand-500 outline-none text-sm" />
+                    </div>
+
+                    {/* Profession */}
+                    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6">
+                      <label className="block text-sm font-medium text-[var(--text)] mb-3">Profession</label>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {PROFESSION_CARDS.map(prof => (
+                          <button key={prof.id} onClick={() => setIdentity(prev => ({ ...prev, profession: prof.id }))}
+                            className={`flex flex-col items-center gap-1 p-3 rounded-xl transition-all text-center ${
+                              identity.profession === prof.id ? 'bg-brand-500/15 border-2 border-brand-500 text-[var(--text)]' : 'bg-[var(--bg)] border border-[var(--border)] text-[var(--text-muted)] hover:border-brand-500/50'
+                            }`}>
+                            <span className="text-2xl">{prof.emoji}</span>
+                            <span className="text-sm font-medium">{prof.label}</span>
+                            <span className="text-[10px] text-[var(--text-dim)]">{prof.desc}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Personality */}
+                    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6">
+                      <label className="block text-sm font-medium text-[var(--text)] mb-3">Personality</label>
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        {Object.entries(PERSONALITY_PRESETS).map(([key, preset]) => (
+                          <button key={key} onClick={() => setIdentity(prev => ({ ...prev, personality: preset.text }))}
+                            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                              activePreset === key ? 'bg-brand-500 text-white' : 'bg-[var(--bg)] border border-[var(--border)] text-[var(--text-muted)] hover:border-brand-500/50'
+                            }`}>{preset.label}</button>
+                        ))}
+                      </div>
+                      <textarea value={identity.personality} onChange={e => setIdentity(prev => ({ ...prev, personality: e.target.value }))}
+                        placeholder="Describe your agent's personality, or pick a preset above..."
+                        className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] focus:border-brand-500 outline-none text-sm resize-none" rows={3} />
+                    </div>
+
+                    {/* Tone */}
+                    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6">
+                      <label className="block text-sm font-medium text-[var(--text)] mb-3">Tone</label>
+                      <div className="flex gap-2">
+                        {TONE_OPTIONS.map(opt => (
+                          <button key={opt.value} onClick={() => setIdentity(prev => ({ ...prev, tone: opt.value }))}
+                            className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex-1 flex items-center justify-center gap-1.5 ${
+                              identity.tone === opt.value ? 'bg-brand-500 text-white' : 'bg-[var(--bg)] border border-[var(--border)] text-[var(--text-muted)] hover:border-brand-500/50'
+                            }`}><span>{opt.emoji}</span>{opt.label}</button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Custom Instructions */}
+                    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6">
+                      <label className="block text-sm font-medium text-[var(--text)] mb-2">Custom Instructions</label>
+                      {isFreeTier ? (
+                        <div className="p-4 rounded-xl bg-[var(--bg)] border border-[var(--border)]">
+                          <div className="flex items-center gap-2 text-[var(--text-dim)]"><span>🔒</span><span className="text-sm">Custom instructions available on Desktop and Pro plans</span></div>
+                          <Link to="/pricing" className="inline-block mt-2 text-sm text-brand-400 hover:text-brand-300 no-underline">Upgrade plan →</Link>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="text-xs text-[var(--text-dim)] mb-2">Any additional instructions for how your agent should behave</p>
+                          <textarea value={identity.custom_instructions} onChange={e => setIdentity(prev => ({ ...prev, custom_instructions: e.target.value }))}
+                            placeholder="e.g. Always respond in French. Focus on code examples. Never use emojis..."
+                            className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] focus:border-brand-500 outline-none text-sm resize-none" rows={4} />
+                        </>
+                      )}
+                    </div>
+
+                    {/* Save */}
+                    {identityError && <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4"><p className="text-red-400 text-sm">{identityError}</p></div>}
+                    <div className="flex items-center gap-3">
+                      <button onClick={handleSaveIdentity} disabled={identitySaving || !hasIdentityChanges}
+                        className="px-6 py-2.5 rounded-lg bg-brand-500 hover:bg-brand-600 text-white font-medium text-sm transition-colors disabled:opacity-50">
+                        {identitySaving ? 'Saving...' : 'Save Identity'}
+                      </button>
+                      {identitySaved && <span className="text-green-400 text-sm">✓ Saved</span>}
+                      {hasIdentityChanges && !identitySaved && <span className="text-[var(--text-dim)] text-sm">Unsaved changes</span>}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* ─── APPEARANCE ─── */}
+            {activeTab === 'appearance' && (
+              <div className="space-y-6 animate-fade-in">
+                <h2 className="text-lg font-semibold">Appearance</h2>
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div><span className="text-sm font-medium text-[var(--text)]">Theme</span><p className="text-xs text-[var(--text-dim)]">Dark, light, or system</p></div>
+                    <select value={prefs.theme} onChange={e => updatePref('theme', e.target.value)} className="px-4 py-2 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm outline-none">
+                      <option value="dark">Dark</option><option value="light">Light</option><option value="system">System</option>
+                    </select>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div><span className="text-sm font-medium text-[var(--text)]">Font Size</span><p className="text-xs text-[var(--text-dim)]">Chat message size</p></div>
+                    <select value={prefs.font_size} onChange={e => updatePref('font_size', e.target.value)} className="px-4 py-2 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm outline-none">
+                      <option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option>
+                    </select>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div><span className="text-sm font-medium text-[var(--text)]">Message Font</span><p className="text-xs text-[var(--text-dim)]">Font family for messages</p></div>
+                    <select value={prefs.message_font} onChange={e => updatePref('message_font', e.target.value)} className="px-4 py-2 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm outline-none">
+                      <option value="sans">Sans-serif</option><option value="serif">Serif</option><option value="mono">Monospace</option>
+                    </select>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div><span className="text-sm font-medium text-[var(--text)]">Send on Enter</span><p className="text-xs text-[var(--text-dim)]">Press Enter to send, Shift+Enter for newline</p></div>
+                    <button onClick={() => updatePref('send_on_enter', !prefs.send_on_enter)} className={`relative w-11 h-6 rounded-full transition-colors ${prefs.send_on_enter ? 'bg-brand-500' : 'bg-[var(--surface-2)]'}`}>
+                      <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${prefs.send_on_enter ? 'translate-x-5' : ''}`} />
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div><span className="text-sm font-medium text-[var(--text)]">Show Timestamps</span><p className="text-xs text-[var(--text-dim)]">Display time on messages</p></div>
+                    <button onClick={() => updatePref('show_timestamps', !prefs.show_timestamps)} className={`relative w-11 h-6 rounded-full transition-colors ${prefs.show_timestamps ? 'bg-brand-500' : 'bg-[var(--surface-2)]'}`}>
+                      <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${prefs.show_timestamps ? 'translate-x-5' : ''}`} />
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div><span className="text-sm font-medium text-[var(--text)]">Compact Mode</span><p className="text-xs text-[var(--text-dim)]">Reduce padding for more content</p></div>
+                    <button onClick={() => updatePref('compact_mode', !prefs.compact_mode)} className={`relative w-11 h-6 rounded-full transition-colors ${prefs.compact_mode ? 'bg-brand-500' : 'bg-[var(--surface-2)]'}`}>
+                      <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${prefs.compact_mode ? 'translate-x-5' : ''}`} />
+                    </button>
+                  </div>
+                  {prefsSaving && <p className="text-xs text-[var(--text-dim)]">Saving...</p>}
+                </div>
+              </div>
+            )}
+
+            {/* ─── SUBSCRIPTION ─── */}
+            {activeTab === 'subscription' && (
+              <div className="space-y-6 animate-fade-in">
+                <h2 className="text-lg font-semibold">Subscription</h2>
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${info.bgColor} ${info.color}`}>{info.name}</span>
+                    {user?.trialEndsAt && new Date(user.trialEndsAt) > new Date() && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 font-medium">Trial: {Math.ceil((new Date(user.trialEndsAt).getTime() - Date.now()) / (1000*60*60*24))} days left</span>
+                    )}
+                  </div>
+                  <p className="text-sm text-[var(--text-muted)] mb-4">{info.description}</p>
+                  {tier !== 'pro' && (
+                    <Link to="/pricing" className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium no-underline transition-colors">
+                      {tier === 'free' ? 'Upgrade plan' : 'Upgrade to Pro'} →
+                    </Link>
+                  )}
+                  {(tier === 'desktop' || tier === 'pro') && <a href="/api/stripe/portal" className="block mt-3 text-sm text-[var(--text-muted)] hover:text-brand-400 transition-colors no-underline">Manage billing →</a>}
+                </div>
+              </div>
+            )}
+
+            {/* ─── USAGE ─── */}
+            {activeTab === 'usage' && (
+              <div className="space-y-6 animate-fade-in">
+                <h2 className="text-lg font-semibold">Usage</h2>
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6">
+                  <p className="text-sm text-[var(--text-muted)] mb-4">
+                    Plan: <span className="font-medium text-[var(--text)]">{info.name}</span>
+                    {creditUsage && creditUsage.monthlyCredits !== -1 && <> · <span className="font-medium text-[var(--text)]">{creditUsage.monthlyCreditsDisplay}</span>/mo included</>}
+                    {creditUsage && creditUsage.monthlyCredits === -1 && <> · <span className="font-medium text-green-400">Unlimited</span></>}
+                  </p>
+                  {loadingUsage ? (
+                    <div className="space-y-3 animate-pulse"><div className="h-3 bg-[var(--surface-2)] rounded-full w-full" /><div className="h-3 bg-[var(--surface-2)] rounded-full w-3/4" /></div>
+                  ) : creditUsage ? (
+                    <div className="space-y-4">
+                      {creditUsage.providers.length > 0 && (
+                        <div className="space-y-3">
+                          <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]">This Month</span>
+                          {creditUsage.providers.map((p) => {
+                            const byok = creditUsage.hasByok[p.provider]
+                            const pct = creditUsage.monthlyCredits === -1 ? 0 : Math.min((p.creditsUsed / creditUsage.monthlyCredits) * 100, 100)
+                            const barColor = pct > 90 ? '#EF4444' : pct > 70 ? '#F59E0B' : '#10B981'
+                            return (
+                              <div key={p.provider}>
+                                <div className="flex items-center justify-between text-sm mb-1">
+                                  <span className="text-[var(--text-muted)]">{getProviderIcon(p.provider)} {getProviderName(p.provider)} {byok ? '' : `(${p.messages} msgs)`}</span>
+                                  {byok ? <span className="text-xs text-green-400 font-medium">Your key · No charge</span> : <span className="text-xs text-[var(--text-dim)]">{p.messages} msgs · {p.promptTokens.toLocaleString()} in / {p.completionTokens.toLocaleString()} out</span>}
+                                </div>
+                                {!byok && creditUsage.monthlyCredits !== -1 && <div className="w-full h-1.5 bg-[var(--surface-2)] rounded-full overflow-hidden"><div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: barColor }} /></div>}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                      {creditUsage.monthlyCredits !== -1 ? (
+                        <div>
+                          <div className="flex items-center justify-between mb-1"><span className="text-sm text-[var(--text)]">Monthly usage</span>{creditUsage.creditPacksRemaining > 0 && <span className="text-sm font-medium text-amber-400">{creditUsage.creditPacksRemainingDisplay} in packs</span>}</div>
+                          <div className="w-full h-2.5 bg-[var(--surface-2)] rounded-full overflow-hidden"><div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(usagePercent, 100)}%`, backgroundColor: usageBarColor }} /></div>
+                        </div>
+                      ) : <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-500/10 border border-green-500/20"><span className="text-sm text-green-400 font-medium">Unlimited</span></div>}
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)] mb-2">Pricing</p>
+                        <div className="space-y-1.5">
+                          {PROVIDERS.map(p => { const pricing = getPricing(p.id); const byok = hasByKey(p.id); return (
+                            <div key={p.id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-[var(--surface-2)]">
+                              <div className="flex items-center gap-2"><span className="text-base">{p.icon}</span><span className="text-sm text-[var(--text)]">{p.name}</span></div>
+                              {byok ? <span className="text-xs font-medium text-green-400">Your key · No charge</span> : <span className="text-xs text-[var(--text-dim)]">{formatPricing(pricing.input, pricing.output)}</span>}
+                            </div>
+                          )})}
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)] mb-2">Need more?</p>
+                        <div className="flex flex-wrap gap-2">
+                          {CREDIT_PACKS.map(pack => <button key={pack.credits} onClick={() => showToast('Credit packs coming soon!')} className="px-4 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] text-sm text-[var(--text)] hover:border-brand-500 hover:bg-brand-500/10 transition-colors">{pack.price}</button>)}
+                        </div>
+                      </div>
+                    </div>
+                  ) : <p className="text-sm text-[var(--text-dim)]">Credit usage data unavailable</p>}
+                </div>
+              </div>
+            )}
+
+            {/* ─── API KEYS ─── */}
+            {activeTab === 'apikeys' && (
+              <div className="space-y-6 animate-fade-in">
+                <div>
+                  <h2 className="text-lg font-semibold">API Keys</h2>
+                  <p className="text-sm text-[var(--text-muted)] mt-1">Bring your own API key for unlimited, free usage. No credits charged when using your own key.</p>
+                </div>
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6">
+                  {loadingKeys ? (
+                    <div className="animate-pulse space-y-2"><div className="h-10 bg-[var(--surface-2)] rounded-lg" /><div className="h-10 bg-[var(--surface-2)] rounded-lg" /></div>
+                  ) : apiKeys.length > 0 ? (
+                    <div className="space-y-2 mb-4">
+                      {apiKeys.map(key => (
+                        <div key={key.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-[var(--surface-2)] group">
+                          <span className="text-base">{getProviderIcon(key.provider)}</span>
+                          <span className="text-sm font-medium text-[var(--text)]">{getProviderName(key.provider)}</span>
+                          {key.label && <span className="text-xs text-[var(--text-dim)]">({key.label})</span>}
+                          <span className="text-xs font-medium text-green-400">Your key · No charge</span>
+                          <code className="text-xs text-[var(--text-dim)] font-mono flex-1 truncate">{key.keyPreview}</code>
+                          <button onClick={() => handleRemoveKey(key.id)} disabled={removingKeyId === key.id} className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/20 text-[var(--text-dim)] hover:text-red-400 transition-all flex-shrink-0">
+                            {removingKeyId === key.id ? <span className="text-xs">...</span> : <Trash2 className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="px-3 py-4 rounded-lg bg-[var(--surface-2)] mb-4 text-center"><p className="text-sm text-[var(--text-dim)]">No API keys added yet</p></div>
+                  )}
+                  <div className="space-y-1.5 mb-4">
+                    {PROVIDERS.map(p => { const existing = apiKeys.find(k => k.provider === p.id); const pricing = getPricing(p.id); return (
+                      <div key={p.id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-[var(--surface-2)]">
+                        <div className="flex items-center gap-2"><span className="text-base">{p.icon}</span><span className="text-sm text-[var(--text)]">{p.name}</span></div>
+                        {existing ? <span className="text-xs font-medium text-green-400">✓ Your key</span> : <div className="flex items-center gap-2"><span className="text-xs text-[var(--text-dim)]">{formatPricing(pricing.input, pricing.output)}</span><button onClick={() => { setNewKeyProvider(p.id); setShowAddKey(true) }} className="text-xs text-brand-400 hover:text-brand-300 font-medium">Add Key →</button></div>}
+                      </div>
+                    )})}
+                  </div>
+                  <button onClick={() => { setNewKeyProvider('anthropic'); setShowAddKey(true) }} className="flex items-center gap-2 px-4 py-2 rounded-lg border border-dashed border-[var(--border)] text-sm text-[var(--text-muted)] hover:text-[var(--text)] hover:border-brand-500 transition-colors w-full justify-center"><Plus className="w-4 h-4" /> Add API Key</button>
+                </div>
+
+                {/* Ollama Cloud Key */}
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6">
+                  <div className="flex items-center gap-2 mb-4"><Key className="w-5 h-5 text-brand-400" /><h3 className="text-lg font-semibold">Ollama Cloud Key</h3>{hasKey && <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/10 text-green-400">Connected</span>}</div>
+                  <p className="text-sm text-[var(--text-muted)] mb-4">Your Ollama Cloud API key stays in your browser. Get one at <a href="https://ollama.com/settings/keys" target="_blank" className="text-brand-400 hover:underline inline-flex items-center gap-1">ollama.com/settings/keys <ExternalLink className="w-3 h-3" /></a></p>
+                  <div className="space-y-4">
+                    <div className="relative">
+                      <input type={showKey ? 'text' : 'password'} value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="sk-..." className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] focus:border-brand-500 outline-none text-sm pr-10" />
+                      <button onClick={() => setShowKey(!showKey)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-[var(--text-dim)] hover:text-[var(--text)]">{showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-[var(--text-muted)] mb-2">Model</label>
+                      <select value={model} onChange={e => setModel(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm outline-none">{MODELS.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select>
+                    </div>
+                    <button onClick={handleSaveApiKey} className="px-4 py-2 rounded-lg bg-brand-500 hover:bg-brand-600 text-white font-medium text-sm transition-colors">Save API settings</button>
+                  </div>
+                </div>
+
+                {/* Add Key Modal */}
+                {showAddKey && (
+                  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowAddKey(false)}>
+                    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6 max-w-md w-full mx-4 shadow-xl" onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center justify-between mb-4"><h3 className="text-lg font-semibold">Add API Key</h3><button onClick={() => setShowAddKey(false)} className="p-1 text-[var(--text-muted)] hover:text-[var(--text)]"><X className="w-5 h-5" /></button></div>
+                      {keyError && <div className="mb-4 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-sm text-red-400">{keyError}</div>}
+                      <div className="space-y-4">
+                        <div><label className="block text-sm font-medium text-[var(--text-muted)] mb-1.5">Provider</label><select value={newKeyProvider} onChange={e => setNewKeyProvider(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm outline-none focus:border-brand-500">{PROVIDERS.map(p => <option key={p.id} value={p.id}>{p.icon} {p.name}</option>)}</select></div>
+                        <div><label className="block text-sm font-medium text-[var(--text-muted)] mb-1.5">API Key</label><div className="relative"><input type={newKeyVisible ? 'text' : 'password'} value={newKeyValue} onChange={e => setNewKeyValue(e.target.value)} placeholder="sk-..." className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm pr-10 focus:border-brand-500 outline-none font-mono" /><button onClick={() => setNewKeyVisible(!newKeyVisible)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-[var(--text-dim)] hover:text-[var(--text)]">{newKeyVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button></div></div>
+                        <div><label className="block text-sm font-medium text-[var(--text-muted)] mb-1.5">Label <span className="text-[var(--text-dim)]">(optional)</span></label><input type="text" value={newKeyLabel} onChange={e => setNewKeyLabel(e.target.value)} placeholder="e.g. Work account" className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm focus:border-brand-500 outline-none" /></div>
+                        <div className="flex gap-3 pt-2"><button onClick={() => setShowAddKey(false)} className="flex-1 px-4 py-2.5 rounded-lg border border-[var(--border)] text-sm text-[var(--text-muted)] hover:bg-[var(--surface-2)] transition-colors">Cancel</button><button onClick={handleAddKey} disabled={!newKeyValue.trim() || savingKey} className="flex-1 px-4 py-2.5 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium transition-colors disabled:opacity-50">{savingKey ? 'Saving...' : 'Save Key'}</button></div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ─── DESKTOP ─── */}
+            {activeTab === 'desktop' && isDesktop && (
+              <div className="space-y-6 animate-fade-in">
+                <div>
+                  <h2 className="text-lg font-semibold">Desktop Settings</h2>
+                  <p className="text-sm text-[var(--text-muted)] mt-1">Local-first features available in the desktop app</p>
+                </div>
+
+                {/* File Access Tier */}
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6">
+                  <div className="flex items-center gap-2 mb-4"><Shield className="w-5 h-5 text-brand-400" /><h3 className="text-lg font-semibold">File Access</h3></div>
+                  <p className="text-sm text-[var(--text-muted)] mb-4">Control which files your agent can access on your computer.</p>
+                  <div className="space-y-2">
+                    {FILE_TIERS.map(t => (
+                      <button key={t.id} onClick={() => handleSetFileTier(t.id)} disabled={fileTierLoading}
+                        className={`w-full flex items-start gap-3 p-3 rounded-lg border transition-all text-left ${
+                          fileTier === t.id ? 'border-brand-500 bg-brand-500/10' : 'border-[var(--border)] bg-[var(--bg)] hover:border-brand-500/50'
+                        }`}>
+                        <span className="text-xl flex-shrink-0 mt-0.5">{t.icon}</span>
+                        <div><div className="flex items-center gap-2"><span className="text-sm font-medium text-[var(--text)]">{t.label}</span>{fileTier === t.id && <span className="text-xs text-brand-400">● Active</span>}</div><p className="text-xs text-[var(--text-dim)] mt-0.5">{t.desc}</p></div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Local Ollama */}
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6">
+                  <div className="flex items-center gap-2 mb-4"><Cpu className="w-5 h-5 text-brand-400" /><h3 className="text-lg font-semibold">Local Ollama</h3></div>
+                  {ollamaStatus ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full ${ollamaStatus.installed ? 'bg-green-400' : 'bg-red-400'}`} />
+                        <span className="text-sm text-[var(--text)]">{ollamaStatus.installed ? `Installed (v${ollamaStatus.version})` : 'Not detected'}</span>
+                      </div>
+                      {ollamaModels.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)] mb-2">Available Models ({ollamaModels.length})</p>
+                          <div className="space-y-1">
+                            {ollamaModels.map(m => (
+                              <div key={m.name} className="flex items-center justify-between px-3 py-2 rounded-lg bg-[var(--surface-2)]">
+                                <span className="text-sm text-[var(--text)]">{m.name}</span>
+                                <span className="text-xs text-[var(--text-dim)]">{m.size}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : <p className="text-sm text-[var(--text-dim)]">Checking for local Ollama...</p>}
+                </div>
+
+                {/* Scheduled Tasks */}
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2"><Clock className="w-5 h-5 text-brand-400" /><h3 className="text-lg font-semibold">Scheduled Tasks</h3></div>
+                    <button onClick={() => setShowCreateTask(true)} className="px-3 py-1.5 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium transition-colors flex items-center gap-1.5"><Plus className="w-3.5 h-3.5" /> New Task</button>
+                  </div>
+                  <p className="text-sm text-[var(--text-muted)] mb-4">Automated reminders and check-ins that run on your machine.</p>
+                  {scheduledTasks.length === 0 ? (
+                    <div className="text-center py-6"><p className="text-sm text-[var(--text-dim)]">No scheduled tasks yet</p><p className="text-xs text-[var(--text-dim)] mt-1">Create a task to get reminders at regular intervals</p></div>
+                  ) : (
+                    <div className="space-y-2">
+                      {scheduledTasks.map(task => (
+                        <div key={task.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-[var(--surface-2)] group">
+                          <span className="text-base flex-shrink-0">{schedulerTaskTypes.find(t => t.id === task.task_type)?.icon || '🔔'}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2"><span className="text-sm font-medium text-[var(--text)] truncate">{task.name}</span>{!task.is_active && <span className="text-xs text-amber-400">Paused</span>}</div>
+                            <span className="text-xs text-[var(--text-dim)]">{task.cron_expr} · Next: {task.nextRun || '—'}</span>
+                          </div>
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {task.is_active ? <button onClick={() => handleTaskAction('pause', task.id)} className="p-1 rounded hover:bg-[var(--surface)] text-[var(--text-dim)] hover:text-[var(--text)]" title="Pause">⏸</button> : <button onClick={() => handleTaskAction('resume', task.id)} className="p-1 rounded hover:bg-[var(--surface)] text-[var(--text-dim)] hover:text-[var(--text)]" title="Resume">▶</button>}
+                            <button onClick={() => handleTaskAction('delete', task.id)} className="p-1 rounded hover:bg-red-500/20 text-[var(--text-dim)] hover:text-red-400" title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Create Task Modal */}
+                  {showCreateTask && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowCreateTask(false)}>
+                      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6 max-w-md w-full mx-4 shadow-xl" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between mb-4"><h3 className="text-lg font-semibold">New Scheduled Task</h3><button onClick={() => setShowCreateTask(false)} className="p-1 text-[var(--text-muted)] hover:text-[var(--text)]"><X className="w-5 h-5" /></button></div>
+                        <div className="space-y-4">
+                          <div><label className="block text-sm font-medium text-[var(--text-muted)] mb-1.5">Name</label><input type="text" value={newTaskName} onChange={e => setNewTaskName(e.target.value)} placeholder="e.g. Morning standup" className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm outline-none focus:border-brand-500" /></div>
+                          <div><label className="block text-sm font-medium text-[var(--text-muted)] mb-1.5">Type</label><select value={newTaskType} onChange={e => setNewTaskType(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm outline-none">{schedulerTaskTypes.map(t => <option key={t.id} value={t.id}>{t.icon} {t.label}</option>)}</select></div>
+                          <div><label className="block text-sm font-medium text-[var(--text-muted)] mb-1.5">Schedule</label><select value={newTaskPreset} onChange={e => setNewTaskPreset(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm outline-none">{schedulerPresets.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}</select></div>
+                          <div><label className="block text-sm font-medium text-[var(--text-muted)] mb-1.5">Message <span className="text-[var(--text-dim)]">(optional)</span></label><textarea value={newTaskMessage} onChange={e => setNewTaskMessage(e.target.value)} placeholder="What should the agent say when this fires?" className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm outline-none resize-none" rows={2} /></div>
+                          <div className="flex gap-3 pt-2"><button onClick={() => setShowCreateTask(false)} className="flex-1 px-4 py-2.5 rounded-lg border border-[var(--border)] text-sm text-[var(--text-muted)] hover:bg-[var(--surface-2)]">Cancel</button><button onClick={handleCreateTask} disabled={!newTaskName.trim() || taskCreating} className="flex-1 px-4 py-2.5 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium disabled:opacity-50">{taskCreating ? 'Creating...' : 'Create Task'}</button></div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Audit Log */}
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6">
+                  <div className="flex items-center gap-2 mb-4"><FileText className="w-5 h-5 text-brand-400" /><h3 className="text-lg font-semibold">Audit Log</h3></div>
+                  <p className="text-sm text-[var(--text-muted)]">All tool calls are logged to <code className="text-xs bg-[var(--surface-2)] px-1.5 py-0.5 rounded">~/.lodestone/tool-audit.log</code></p>
+                </div>
+              </div>
+            )}
+
+            {/* ─── STORAGE ─── */}
+            {activeTab === 'storage' && (
+              <div className="space-y-6 animate-fade-in">
+                <h2 className="text-lg font-semibold">Storage</h2>
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6">
+                  <div className="flex items-center gap-2 mb-4"><HardDrive className="w-5 h-5 text-brand-400" /></div>
+                  {storage ? (
+                    <div>
+                      <div className="flex justify-between text-sm mb-2"><span className="text-[var(--text-muted)]">{formatBytes(storage.used)} of {formatBytes(storage.limit)} used</span><span className="text-[var(--text-dim)]">{storagePercent.toFixed(0)}%</span></div>
+                      <div className="w-full h-2.5 bg-[var(--surface-2)] rounded-full overflow-hidden"><div className="h-full rounded-full transition-all duration-500" style={{ width: `${storagePercent}%`, backgroundColor: storageColor }} /></div>
+                      {storage.breakdown && (
+                        <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
+                          <div className="text-center p-2 rounded-lg bg-[var(--surface-2)]"><div className="text-[var(--text)] font-medium">{formatBytes(storage.breakdown.conversations)}</div><div className="text-[var(--text-dim)] text-xs">Conversations</div></div>
+                          <div className="text-center p-2 rounded-lg bg-[var(--surface-2)]"><div className="text-[var(--text)] font-medium">{formatBytes(storage.breakdown.memories)}</div><div className="text-[var(--text-dim)] text-xs">Memories</div></div>
+                          <div className="text-center p-2 rounded-lg bg-[var(--surface-2)]"><div className="text-[var(--text)] font-medium">{formatBytes(storage.breakdown.files)}</div><div className="text-[var(--text-dim)] text-xs">Files</div></div>
+                        </div>
+                      )}
+                    </div>
+                  ) : <p className="text-sm text-[var(--text-dim)]">Loading storage info...</p>}
+                </div>
+              </div>
+            )}
+
+            {/* ─── DANGER ZONE ─── */}
+            {activeTab === 'danger' && (
+              <div className="space-y-6 animate-fade-in">
+                <h2 className="text-lg font-semibold text-red-400">Danger Zone</h2>
+                <div className="bg-[var(--surface)] border border-red-500/20 rounded-xl p-6">
+                  <div className="flex items-center gap-2 mb-4"><AlertTriangle className="w-5 h-5 text-red-400" /><h3 className="text-base font-semibold text-red-400">Delete Account</h3></div>
+                  <p className="text-sm text-[var(--text-muted)] mb-4">Permanently delete your account and all data. This cannot be undone.</p>
+                  {deleteConfirm ? (
+                    <div className="space-y-3">
+                      <p className="text-sm text-red-400 font-medium">Are you sure? This will permanently delete your account, conversations, memories, and all data.</p>
+                      <div className="flex gap-2"><button className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium transition-colors">Yes, delete my account</button><button onClick={() => setDeleteConfirm(false)} className="px-4 py-2 rounded-lg border border-[var(--border)] text-[var(--text-muted)] text-sm font-medium hover:bg-[var(--surface-2)] transition-colors">Cancel</button></div>
+                    </div>
+                  ) : <button onClick={() => setDeleteConfirm(true)} className="px-4 py-2 rounded-lg border border-red-500/40 text-red-400 hover:bg-red-500/10 text-sm font-medium transition-colors">Delete account</button>}
+                </div>
+              </div>
+            )}
+
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

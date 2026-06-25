@@ -1,0 +1,148 @@
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
+import rehypeKatex from 'rehype-katex'
+import rehypeHighlight from 'rehype-highlight'
+import { useState, useCallback, useEffect, useRef } from 'react'
+import MermaidDiagram from './MermaidDiagram'
+import ChartBlock from './ChartBlock'
+
+// Code block component with copy button, language label, Mermaid, and Chart support
+function CodeBlock({ children, className, ...props }: any) {
+  const [copied, setCopied] = useState(false)
+  const match = /language-(\w+)(?:\s+([\s\S]+))?/.exec(className || '')
+  const language = match ? match[1] : ''
+  const codeText = String(children).replace(/\n$/, '')
+
+  // Mermaid diagram rendering
+  if (language === 'mermaid') {
+    return <MermaidDiagram definition={codeText} />
+  }
+
+  // Chart.js rendering (language-chart)
+  if (language === 'chart' || language === 'chartjs') {
+    return <ChartBlock code={codeText} />
+  }
+
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(codeText).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }, [codeText])
+
+  return (
+    <div className="code-block-wrapper relative group my-4 rounded-lg overflow-hidden border border-[var(--border)]">
+      {language && (
+        <div className="flex items-center justify-between px-3 py-1.5 bg-[var(--surface-2)] border-b border-[var(--border)] text-xs text-[var(--text-dim)]">
+          <span>{language}</span>
+          <button
+            onClick={handleCopy}
+            className="flex items-center gap-1 px-2 py-0.5 rounded text-xs hover:bg-[var(--surface)] transition-colors"
+          >
+            {copied ? (
+              <>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>
+                Copied
+              </>
+            ) : (
+              <>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                Copy
+              </>
+            )}
+          </button>
+        </div>
+      )}
+      {!language && (
+        <button
+          onClick={handleCopy}
+          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 px-2 py-1 rounded bg-[var(--surface-2)] text-xs text-[var(--text-dim)] hover:text-[var(--text)]"
+        >
+          {copied ? '✓ Copied' : 'Copy'}
+        </button>
+      )}
+      <pre className="!my-0 !rounded-none !border-0 overflow-x-auto">
+        <code className={className} {...props}>
+          {children}
+        </code>
+      </pre>
+    </div>
+  )
+}
+
+// Inline code
+function InlineCode({ children, ...props }: any) {
+  return (
+    <code className="px-1.5 py-0.5 rounded bg-[var(--surface-2)] text-brand-300 text-sm font-mono" {...props}>
+      {children}
+    </code>
+  )
+}
+
+// Link that opens in new tab
+function ExternalLink({ href, children, ...props }: any) {
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="text-brand-400 hover:text-brand-300 underline underline-offset-2 transition-colors" {...props}>
+      {children}
+    </a>
+  )
+}
+
+// Interactive table with sorting
+function InteractiveTable({ children, ...props }: any) {
+  return (
+    <div className="overflow-x-auto my-4 rounded-lg border border-[var(--border)]">
+      <table className="min-w-full border-collapse" {...props}>
+        {children}
+      </table>
+    </div>
+  )
+}
+
+function Th({ children, ...props }: any) {
+  return <th className="border border-[var(--border)] px-3 py-2 bg-[var(--surface-2)] text-left text-sm font-medium text-[var(--text)] sticky top-0" {...props}>{children}</th>
+}
+
+function Td({ children, ...props }: any) {
+  return <td className="border border-[var(--border)] px-3 py-2 text-sm text-[var(--text)]" {...props}>{children}</td>
+}
+
+// Main Markdown component
+export default function Markdown({ content, className = '' }: { content: string; className?: string }) {
+  return (
+    <div className={`prose prose-sm prose-invert max-w-none ${className}`}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[rehypeKatex, [rehypeHighlight, { detect: true }]]}
+        components={{
+          code: InlineCode,
+          pre: CodeBlock,
+          a: ExternalLink,
+          table: InteractiveTable,
+          th: Th,
+          td: Td,
+          blockquote: ({ children, ...props }) => (
+            <blockquote className="border-l-3 border-brand-400 pl-4 my-4 italic text-[var(--text-muted)]" {...props}>
+              {children}
+            </blockquote>
+          ),
+          h1: ({ children, ...props }) => <h1 className="text-2xl font-bold text-[var(--text)] mt-6 mb-3" {...props}>{children}</h1>,
+          h2: ({ children, ...props }) => <h2 className="text-xl font-bold text-[var(--text)] mt-5 mb-2" {...props}>{children}</h2>,
+          h3: ({ children, ...props }) => <h3 className="text-lg font-semibold text-[var(--text)] mt-4 mb-2" {...props}>{children}</h3>,
+          h4: ({ children, ...props }) => <h4 className="text-base font-semibold text-[var(--text)] mt-3 mb-1" {...props}>{children}</h4>,
+          ul: ({ children, ...props }) => <ul className="list-disc list-inside my-2 space-y-1 text-[var(--text)]" {...props}>{children}</ul>,
+          ol: ({ children, ...props }) => <ol className="list-decimal list-inside my-2 space-y-1 text-[var(--text)]" {...props}>{children}</ol>,
+          li: ({ children, ...props }) => <li className="text-sm text-[var(--text)]" {...props}>{children}</li>,
+          hr: () => <hr className="border-[var(--border)] my-4" />,
+          img: ({ src, alt, ...props }) => <img src={src} alt={alt} className="max-w-full rounded-lg border border-[var(--border)] my-2" loading="lazy" {...props} />,
+          p: ({ children, ...props }) => <p className="my-2 text-[var(--text)] leading-relaxed" {...props}>{children}</p>,
+          strong: ({ children, ...props }) => <strong className="font-semibold text-[var(--text)]" {...props}>{children}</strong>,
+          em: ({ children, ...props }) => <em className="italic text-[var(--text-muted)]" {...props}>{children}</em>,
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
+  )
+}

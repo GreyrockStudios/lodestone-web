@@ -1,0 +1,817 @@
+import { useAuth } from '../hooks/useAuth'
+import { useState, useEffect, useCallback } from 'react'
+import { Eye, EyeOff, Key, ExternalLink, CreditCard, HardDrive, AlertTriangle, Plus, Trash2, X } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { formatCreditsShort, formatPerMessageCost } from '../lib/credits'
+import type { ProviderRate, CreditUsage } from '../lib/credits'
+
+const PROVIDERS = [
+  { id: 'ollama', name: 'Ollama Cloud', icon: '🦙' },
+  { id: 'anthropic', name: 'Anthropic', icon: '🟣' },
+  { id: 'openai', name: 'OpenAI', icon: '🟢' },
+] as const
+
+const MODELS = [
+  { id: 'glm-5.1:cloud', name: 'GLM 5.1 (Balanced)', provider: 'Ollama Cloud' },
+  { id: 'glm-5.2:cloud', name: 'GLM 5.2 (Powerful)', provider: 'Ollama Cloud' },
+  { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', provider: 'Ollama Cloud' },
+  { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash (Fast)', provider: 'Ollama Cloud' },
+  { id: 'qwen3.5', name: 'Qwen 3.5', provider: 'Ollama Cloud' },
+  { id: 'gemma4', name: 'Gemma 4', provider: 'Ollama Cloud' },
+]
+
+const CREDIT_PACKS = [
+  { credits: 200, price: '$2.99', label: '$2.00' },    // $2.00 in credits for $2.99
+  { credits: 700, price: '$9.99', label: '$7.00' },    // $7.00 in credits for $9.99
+  { credits: 1500, price: '$19.99', label: '$15.00' },  // $15.00 in credits for $19.99
+]
+
+const tierInfo: Record<string, { name: string; color: string; bgColor: string; description: string }> = {
+  free: { name: 'Free', color: 'text-gray-400', bgColor: 'bg-gray-500/20', description: 'Unlimited chat · Memory · Brain' },
+  desktop: { name: 'Desktop', color: 'text-brand-400', bgColor: 'bg-brand-500/20', description: 'Unlimited chat · Memory · Tools · Desktop app' },
+  pro: { name: 'Pro', color: 'text-cyan-400', bgColor: 'bg-cyan-500/20', description: 'Multi-provider · Advanced tools · Priority support' },
+}
+
+// Default per-message costs in cents if API is unavailable
+const DEFAULT_COSTS: Record<string, number> = {
+  ollama: 1,      // $0.01
+  anthropic: 2,   // $0.02
+  openai: 2,      // $0.02
+}
+
+interface StorageUsage {
+  used: number
+  limit: number
+  breakdown?: { conversations: number; memories: number; files: number }
+}
+
+interface ApiKey {
+  id: string
+  provider: string
+  label?: string
+  keyPreview: string
+  createdAt: string
+}
+
+export default function Settings() {
+  const { user } = useAuth()
+  const [displayName, setDisplayName] = useState(user?.displayName || '')
+  const [apiKey, setApiKey] = useState(localStorage.getItem('lodestone_api_key') || '')
+  const [model, setModel] = useState(localStorage.getItem('lodestone_model') || 'glm-5.1:cloud')
+  const [showKey, setShowKey] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [storage, setStorage] = useState<StorageUsage | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState(false)
+
+  // API Keys state
+  const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
+  const [loadingKeys, setLoadingKeys] = useState(true)
+  const [showAddKey, setShowAddKey] = useState(false)
+  const [newKeyProvider, setNewKeyProvider] = useState('anthropic')
+  const [newKeyValue, setNewKeyValue] = useState('')
+  const [newKeyLabel, setNewKeyLabel] = useState('')
+  const [newKeyVisible, setNewKeyVisible] = useState(false)
+  const [savingKey, setSavingKey] = useState(false)
+  const [keyError, setKeyError] = useState<string | null>(null)
+  const [removingKeyId, setRemovingKeyId] = useState<string | null>(null)
+
+  // Credit usage state
+  const [creditUsage, setCreditUsage] = useState<CreditUsage | null>(null)
+  const [providerRates, setProviderRates] = useState<ProviderRate[]>([])
+  const [loadingUsage, setLoadingUsage] = useState(true)
+
+  // Toast for coming soon
+  const [toast, setToast] = useState<string | null>(null)
+
+  const tier = user?.tier || 'free'
+  const info = tierInfo[tier] || tierInfo.free
+  const hasKey = !!localStorage.getItem('lodestone_api_key')
+
+  const showToast = (msg: string) => {
+    setToast(msg)
+    setTimeout(() => setToast(null), 3000)
+  }
+
+  // Fetch storage
+  useEffect(() => {
+    const token = localStorage.getItem('lodestone_access_token')
+    if (!token) return
+    fetch('/api/storage/usage', {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then(r => r.ok ? r.json() : null).then(setStorage).catch(() => {})
+  }, [])
+
+  // Fetch API keys
+  const loadKeys = useCallback(() => {
+    const token = localStorage.getItem('lodestone_access_token')
+    if (!token) { setLoadingKeys(false); return }
+    fetch('/api/keys', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : { keys: [] })
+      .then(data => {
+        setApiKeys(data.keys || [])
+        setLoadingKeys(false)
+      })
+      .catch(() => {
+        setApiKeys([])
+        setLoadingKeys(false)
+      })
+  }, [])
+
+  useEffect(() => { loadKeys() }, [loadKeys])
+
+  // Fetch credit usage (new endpoint with fallback)
+  const loadUsage = useCallback(() => {
+    const token = localStorage.getItem('lodestone_access_token')
+    if (!token) { setLoadingUsage(false); return }
+
+    const loadCredits = async () => {
+      try {
+        // Try new credits endpoint first
+        let res = await fetch('/api/usage/credits', { headers: { Authorization: `Bearer ${token}` } })
+        if (res.ok) {
+          const data = await res.json()
+          setCreditUsage(data)
+          setLoadingUsage(false)
+          return
+        }
+        // Fallback to old tokens endpoint
+        res = await fetch('/api/usage/tokens', { headers: { Authorization: `Bearer ${token}` } })
+        if (res.ok) {
+          const data = await res.json()
+          // Convert old token format to credit format
+          setCreditUsage({
+            periodStart: data.periodStart || '',
+            periodEnd: data.periodEnd || '',
+            plan: data.plan || 'free',
+            monthlyCredits: (data.planQuota ?? 100000) / 2000,
+            monthlyCreditsDisplay: formatCreditsShort((data.planQuota ?? 100000) / 2000),
+            creditsUsed: (data.totalUsed ?? 0) / 2000,
+            creditsUsedDisplay: formatCreditsShort((data.totalUsed ?? 0) / 2000),
+            creditsRemaining: ((data.planQuota ?? 100000) - (data.totalUsed ?? 0)) / 2000,
+            creditsRemainingDisplay: formatCreditsShort(((data.planQuota ?? 100000) - (data.totalUsed ?? 0)) / 2000),
+            providers: (data.providers ?? []).map((p: any) => ({
+              provider: p.provider,
+              model: '',
+              messages: Math.round(p.used / 500),
+              creditsUsed: p.used / 2000,
+              costPerMessage: DEFAULT_COSTS[p.provider] ?? 1,
+            })),
+            creditPacksRemaining: (data.packTokens ?? 0) / 2000,
+            creditPacksRemainingDisplay: formatCreditsShort((data.packTokens ?? 0) / 2000),
+            hasByok: Object.fromEntries((data.providers ?? []).map((p: any) => [p.provider, p.hasKey ?? false])),
+            perMessageCosts: Object.fromEntries(
+              PROVIDERS.map(p => [p.id, formatPerMessageCost(DEFAULT_COSTS[p.id] ?? 1)])
+            ),
+          })
+        }
+      } catch {}
+      setLoadingUsage(false)
+    }
+    loadCredits()
+  }, [])
+
+  // Fetch provider rates
+  useEffect(() => {
+    const token = localStorage.getItem('lodestone_access_token')
+    if (!token) return
+    fetch('/api/usage/provider-rates', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.rates) setProviderRates(data.rates)
+      })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => { loadUsage() }, [loadUsage])
+
+  // Get per-message cost for a provider
+  const getCostPerMessage = (providerId: string): number => {
+    const rate = providerRates.find(r => r.provider === providerId)
+    if (rate) return rate.costPerMessage
+    return DEFAULT_COSTS[providerId] ?? 1
+  }
+
+  // Check if provider has BYOK key active
+  const hasByKey = (providerId: string): boolean => {
+    const rate = providerRates.find(r => r.provider === providerId)
+    if (rate) return rate.hasKey
+    return apiKeys.some(k => k.provider === providerId) || (providerId === 'ollama' && !!apiKey)
+  }
+
+  const handleSaveProfile = async () => {
+    setSaving(true)
+    try {
+      const token = localStorage.getItem('lodestone_access_token')
+      await fetch('/api/user/me', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ displayName }),
+      })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } catch {}
+    setSaving(false)
+  }
+
+  const handleSaveApiKey = () => {
+    if (apiKey) {
+      localStorage.setItem('lodestone_api_key', apiKey)
+    } else {
+      localStorage.removeItem('lodestone_api_key')
+    }
+    localStorage.setItem('lodestone_model', model)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  const handleAddKey = async () => {
+    if (!newKeyValue.trim()) return
+    setSavingKey(true)
+    setKeyError(null)
+    try {
+      const token = localStorage.getItem('lodestone_access_token')
+      const res = await fetch('/api/keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ provider: newKeyProvider, key: newKeyValue.trim(), label: newKeyLabel.trim() || undefined }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setKeyError(data.error || 'Failed to add key')
+        return
+      }
+      setShowAddKey(false)
+      setNewKeyValue('')
+      setNewKeyLabel('')
+      setNewKeyProvider('anthropic')
+      loadKeys()
+      loadUsage()
+      showToast('API key added successfully')
+    } catch {
+      setKeyError('Connection error. Please try again.')
+    } finally {
+      setSavingKey(false)
+    }
+  }
+
+  const handleRemoveKey = async (keyId: string) => {
+    setRemovingKeyId(keyId)
+    try {
+      const token = localStorage.getItem('lodestone_access_token')
+      await fetch(`/api/keys/${keyId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      loadKeys()
+      loadUsage()
+      showToast('API key removed')
+    } catch {
+      showToast('Failed to remove key')
+    }
+    setRemovingKeyId(null)
+  }
+
+  const formatBytes = (bytes: number) => {
+    if (bytes === 0) return '0 B'
+    const k = 1024
+    const sizes = ['B', 'KB', 'MB', 'GB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
+  }
+
+  const storagePercent = storage ? Math.min((storage.used / storage.limit) * 100, 100) : 0
+  const storageColor = storagePercent > 90 ? '#EF4444' : storagePercent > 70 ? '#F59E0B' : '#10B981'
+
+  const usagePercent = creditUsage
+    ? (creditUsage.monthlyCredits === -1 ? 0 : (creditUsage.creditsUsed / creditUsage.monthlyCredits) * 100)
+    : 0
+  const usageBarColor = usagePercent > 90 ? '#EF4444' : usagePercent > 70 ? '#F59E0B' : '#10B981'
+
+  const getProviderName = (id: string) => PROVIDERS.find(p => p.id === id)?.name || id
+  const getProviderIcon = (id: string) => PROVIDERS.find(p => p.id === id)?.icon || '🔑'
+
+  return (
+    <div className="p-4 md:p-8 max-w-2xl mx-auto animate-fade-in">
+      {/* Toast */}
+      {toast && (
+        <div className="fixed top-4 right-4 z-50 px-4 py-2 rounded-lg bg-brand-500/20 border border-brand-500/30 text-brand-400 text-sm font-medium animate-fade-in">
+          {toast}
+        </div>
+      )}
+
+      {/* Saved toast */}
+      {saved && !toast && (
+        <div className="fixed top-4 right-4 z-50 px-4 py-2 rounded-lg bg-green-500/20 border border-green-500/30 text-green-400 text-sm font-medium animate-fade-in">
+          ✓ Saved
+        </div>
+      )}
+
+      <h1 className="text-2xl font-bold mb-6">Settings</h1>
+
+      <div className="space-y-6">
+
+        {/* Subscription */}
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <CreditCard className="w-5 h-5 text-brand-400" />
+            <h2 className="text-lg font-semibold">Subscription</h2>
+          </div>
+
+          <div className="flex items-center gap-3 mb-4">
+            <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${info.bgColor} ${info.color}`}>
+              {info.name}
+            </span>
+            {user?.trialEndsAt && new Date(user.trialEndsAt) > new Date() && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 font-medium">
+                Trial: {Math.ceil((new Date(user.trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24))} days left
+              </span>
+            )}
+          </div>
+
+          <p className="text-sm text-[var(--text-muted)] mb-4">{info.description}</p>
+
+          {tier !== 'pro' && (
+            <Link
+              to="/pricing"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium no-underline transition-colors"
+            >
+              {tier === 'free' ? 'Upgrade plan' : 'Upgrade to Pro'}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
+              </svg>
+            </Link>
+          )}
+
+          {(tier === 'desktop' || tier === 'pro') && (
+            <a
+              href="/api/stripe/portal"
+              className="block mt-3 text-sm text-[var(--text-muted)] hover:text-brand-400 transition-colors no-underline"
+            >
+              Manage billing →
+            </a>
+          )}
+        </div>
+
+        {/* Credit Usage */}
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-brand-400">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+            <h2 className="text-lg font-semibold">Credit Usage</h2>
+          </div>
+
+          <p className="text-sm text-[var(--text-muted)] mb-4">
+            Plan: <span className="font-medium text-[var(--text)]">{info.name}</span>{creditUsage && creditUsage.monthlyCredits !== -1 && (
+              <> · <span className="font-medium text-[var(--text)]">{creditUsage.monthlyCreditsDisplay}</span>/mo included</>
+            )}
+            {creditUsage && creditUsage.monthlyCredits === -1 && (
+              <> · <span className="font-medium text-green-400">Unlimited</span></>
+            )}
+          </p>
+
+          {loadingUsage ? (
+            <div className="space-y-3 animate-pulse">
+              <div className="h-3 bg-[var(--surface-2)] rounded-full w-full" />
+              <div className="h-3 bg-[var(--surface-2)] rounded-full w-3/4" />
+            </div>
+          ) : creditUsage ? (
+            <div className="space-y-4">
+              {/* Per-provider breakdown */}
+              {creditUsage.providers.length > 0 && (
+                <div className="space-y-3">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]">This Month</span>
+                  {creditUsage.providers.map((p) => {
+                    const byok = creditUsage.hasByok[p.provider]
+                    const pct = creditUsage.monthlyCredits === -1
+                      ? 0
+                      : Math.min((p.creditsUsed / creditUsage.monthlyCredits) * 100, 100)
+                    const barColor = pct > 90 ? '#EF4444' : pct > 70 ? '#F59E0B' : '#10B981'
+                    return (
+                      <div key={p.provider}>
+                        <div className="flex items-center justify-between text-sm mb-1">
+                          <span className="text-[var(--text-muted)]">
+                            {getProviderIcon(p.provider)} {getProviderName(p.provider)} {byok ? '' : `(${p.messages} msgs)`}
+                          </span>
+                          {byok ? (
+                            <span className="text-xs text-green-400 font-medium">Your key · No charge</span>
+                          ) : (
+                            <span className="text-xs text-[var(--text-dim)]">
+                              {formatCreditsShort(p.creditsUsed)}
+                            </span>
+                          )}
+                        </div>
+                        {!byok && creditUsage.monthlyCredits !== -1 && (
+                          <div className="w-full h-1.5 bg-[var(--surface-2)] rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all duration-500"
+                              style={{ width: `${pct}%`, backgroundColor: barColor }}
+                            />
+                          </div>
+                        )}
+                        {!byok && creditUsage.monthlyCredits === -1 && (
+                          <div className="w-full h-1.5 bg-[var(--surface-2)] rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all duration-500 bg-green-500"
+                              style={{ width: '100%' }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Total usage bar */}
+              {creditUsage.monthlyCredits !== -1 ? (
+                <div>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="text-[var(--text)]">Total usage</span>
+                    <span className="text-[var(--text-dim)]">
+                      {formatCreditsShort(creditUsage.creditsUsed)} of {formatCreditsShort(creditUsage.monthlyCredits)} remaining this month
+                    </span>
+                  </div>
+                  <div className="w-full h-2.5 bg-[var(--surface-2)] rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{ width: `${Math.min(usagePercent, 100)}%`, backgroundColor: usageBarColor }}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-500/10 border border-green-500/20">
+                  <span className="text-sm text-green-400 font-medium">Unlimited</span>
+                </div>
+              )}
+
+              {/* Pack credits */}
+              {creditUsage.creditPacksRemaining > 0 && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-brand-500/10 border border-brand-500/20">
+                  <span className="text-sm text-brand-400">+ {creditUsage.creditPacksRemainingDisplay} pack credits available</span>
+                </div>
+              )}
+
+              {/* Buy credits */}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)] mb-2">Need more credits?</p>
+                <div className="flex flex-wrap gap-2">
+                  {CREDIT_PACKS.map(pack => (
+                    <button
+                      key={pack.credits}
+                      onClick={() => showToast('Credit packs coming soon! Stripe checkout will be available shortly.')}
+                      className="relative px-4 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] text-sm text-[var(--text)] hover:border-[var(--brand)] hover:bg-brand-500/10 transition-colors group"
+                    >
+                      <span className="font-medium">Add {pack.label}</span>
+                      <span className="text-[var(--text-dim)] ml-1">— {pack.price}</span>
+                      <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.5 text-[9px] font-bold rounded bg-amber-500/20 text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity">Soon</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-[var(--text-dim)]">Credit usage data unavailable</p>
+          )}
+        </div>
+
+        {/* API Keys */}
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6">
+          <div className="flex items-center gap-2 mb-1">
+            <Key className="w-5 h-5 text-brand-400" />
+            <h2 className="text-lg font-semibold">API Keys</h2>
+          </div>
+          <p className="text-sm text-[var(--text-muted)] mb-4">
+            Bring your own API key for unlimited, free usage. No credits charged when using your own key.
+          </p>
+
+          {/* Existing keys list */}
+          {loadingKeys ? (
+            <div className="animate-pulse space-y-2">
+              <div className="h-10 bg-[var(--surface-2)] rounded-lg" />
+              <div className="h-10 bg-[var(--surface-2)] rounded-lg" />
+            </div>
+          ) : apiKeys.length > 0 ? (
+            <div className="space-y-2 mb-4">
+              {apiKeys.map(key => (
+                <div key={key.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-[var(--surface-2)] group">
+                  <span className="text-base">{getProviderIcon(key.provider)}</span>
+                  <span className="text-sm font-medium text-[var(--text)]">{getProviderName(key.provider)}</span>
+                  {key.label && <span className="text-xs text-[var(--text-dim)]">({key.label})</span>}
+                  <span className="text-xs font-medium text-green-400">Your key · No charge</span>
+                  <code className="text-xs text-[var(--text-dim)] font-mono flex-1 truncate">{key.keyPreview}</code>
+                  <button
+                    onClick={() => handleRemoveKey(key.id)}
+                    disabled={removingKeyId === key.id}
+                    className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/20 text-[var(--text-dim)] hover:text-red-400 transition-all disabled:opacity-50 flex-shrink-0"
+                    title="Remove key"
+                  >
+                    {removingKeyId === key.id ? (
+                      <span className="text-xs">Removing...</span>
+                    ) : (
+                      <Trash2 className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="px-3 py-4 rounded-lg bg-[var(--surface-2)] mb-4 text-center">
+              <p className="text-sm text-[var(--text-dim)]">No API keys added yet</p>
+              <p className="text-xs text-[var(--text-dim)] mt-1">Add your own keys for unlimited usage with any provider</p>
+            </div>
+          )}
+
+          {/* Provider rows (available to add) */}
+          <div className="space-y-1.5 mb-4">
+            {PROVIDERS.map(p => {
+              const existing = apiKeys.find(k => k.provider === p.id)
+              const cost = getCostPerMessage(p.id)
+              return (
+                <div key={p.id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-[var(--surface-2)]">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">{p.icon}</span>
+                    <span className="text-sm text-[var(--text)]">{p.name}</span>
+                  </div>
+                  {existing ? (
+                    <span className="text-xs font-medium text-green-400 flex items-center gap-1">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                      Your key · No charge
+                    </span>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-[var(--text-dim)]">{formatPerMessageCost(cost)}</span>
+                      <button
+                        onClick={() => { setNewKeyProvider(p.id); setShowAddKey(true) }}
+                        className="text-xs text-brand-400 hover:text-brand-300 font-medium transition-colors"
+                      >
+                        Add Key →
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Add key button */}
+          <button
+            onClick={() => { setNewKeyProvider('anthropic'); setShowAddKey(true) }}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-dashed border-[var(--border)] text-sm text-[var(--text-muted)] hover:text-[var(--text)] hover:border-[var(--brand)] transition-colors w-full justify-center"
+          >
+            <Plus className="w-4 h-4" />
+            Add API Key
+          </button>
+        </div>
+
+        {/* Add Key Modal */}
+        {showAddKey && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowAddKey(false)}>
+            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6 max-w-md w-full mx-4 shadow-xl" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-[var(--text)]">Add API Key</h3>
+                <button onClick={() => setShowAddKey(false)} className="p-1 text-[var(--text-muted)] hover:text-[var(--text)] transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {keyError && (
+                <div className="mb-4 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-sm text-red-400">
+                  {keyError}
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-[var(--text-muted)] mb-1.5">Provider</label>
+                  <select
+                    value={newKeyProvider}
+                    onChange={e => setNewKeyProvider(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm outline-none focus:border-brand-500"
+                  >
+                    {PROVIDERS.map(p => (
+                      <option key={p.id} value={p.id}>{p.icon} {p.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-[var(--text-muted)] mb-1.5">API Key</label>
+                  <div className="relative">
+                    <input
+                      type={newKeyVisible ? 'text' : 'password'}
+                      value={newKeyValue}
+                      onChange={e => setNewKeyValue(e.target.value)}
+                      placeholder={newKeyProvider === 'anthropic' ? 'sk-ant-...' : newKeyProvider === 'openai' ? 'sk-...' : 'sk-...'}
+                      className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm pr-10 focus:border-brand-500 outline-none font-mono"
+                    />
+                    <button
+                      onClick={() => setNewKeyVisible(!newKeyVisible)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-[var(--text-dim)] hover:text-[var(--text)]"
+                    >
+                      {newKeyVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-[var(--text-muted)] mb-1.5">Label <span className="text-[var(--text-dim)]">(optional)</span></label>
+                  <input
+                    type="text"
+                    value={newKeyLabel}
+                    onChange={e => setNewKeyLabel(e.target.value)}
+                    placeholder="e.g. Work account"
+                    className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm focus:border-brand-500 outline-none"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={() => setShowAddKey(false)}
+                    className="flex-1 px-4 py-2.5 rounded-lg border border-[var(--border)] text-sm text-[var(--text-muted)] hover:bg-[var(--surface-2)] transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleAddKey}
+                    disabled={!newKeyValue.trim() || savingKey}
+                    className="flex-1 px-4 py-2.5 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {savingKey ? 'Saving...' : 'Save Key'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Storage Usage */}
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <HardDrive className="w-5 h-5 text-brand-400" />
+            <h2 className="text-lg font-semibold">Storage</h2>
+          </div>
+
+          {storage ? (
+            <div>
+              <div className="flex justify-between text-sm mb-2">
+                <span className="text-[var(--text-muted)]">
+                  {formatBytes(storage.used)} of {formatBytes(storage.limit)} used
+                </span>
+                <span className="text-[var(--text-dim)]">{storagePercent.toFixed(0)}%</span>
+              </div>
+              <div className="w-full h-2.5 bg-[var(--surface-2)] rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{ width: `${storagePercent}%`, backgroundColor: storageColor }}
+                />
+              </div>
+              {storage.breakdown && (
+                <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
+                  <div className="text-center p-2 rounded-lg bg-[var(--surface-2)]">
+                    <div className="text-[var(--text)] font-medium">{formatBytes(storage.breakdown.conversations)}</div>
+                    <div className="text-[var(--text-dim)] text-xs">Conversations</div>
+                  </div>
+                  <div className="text-center p-2 rounded-lg bg-[var(--surface-2)]">
+                    <div className="text-[var(--text-dim)] text-[var(--text)] font-medium">{formatBytes(storage.breakdown.memories)}</div>
+                    <div className="text-[var(--text-dim)] text-xs">Memories</div>
+                  </div>
+                  <div className="text-center p-2 rounded-lg bg-[var(--surface-2)]">
+                    <div className="text-[var(--text)] font-medium">{formatBytes(storage.breakdown.files)}</div>
+                    <div className="text-[var(--text-dim)] text-xs">Files</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div>
+              <div className="w-full h-2.5 bg-[var(--surface-2)] rounded-full overflow-hidden">
+                <div className="h-full rounded-full bg-brand-500/30" style={{ width: '0%' }} />
+              </div>
+              <p className="text-sm text-[var(--text-dim)] mt-2">Loading storage info...</p>
+            </div>
+          )}
+        </div>
+
+        {/* Original API Key (BYOK for Ollama Cloud) */}
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Key className="w-5 h-5 text-brand-400" />
+            <h2 className="text-lg font-semibold">Ollama Cloud Key</h2>
+            {hasKey && <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/10 text-green-400">Connected</span>}
+          </div>
+          <p className="text-sm text-[var(--text-muted)] mb-4">
+            Your Ollama Cloud API key stays in your browser and is <strong>never sent to our server</strong>. 
+            Get one at <a href="https://ollama.com/settings/keys" target="_blank" className="text-brand-400 hover:underline inline-flex items-center gap-1">ollama.com/settings/keys <ExternalLink className="w-3 h-3" /></a>
+          </p>
+          <div className="space-y-4">
+            <div className="relative">
+              <input
+                type={showKey ? 'text' : 'password'}
+                value={apiKey}
+                onChange={e => setApiKey(e.target.value)}
+                placeholder="sk-..."
+                className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] focus:border-brand-500 outline-none text-sm pr-10"
+              />
+              <button
+                onClick={() => setShowKey(!showKey)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-[var(--text-dim)] hover:text-[var(--text)]"
+              >
+                {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-[var(--text-muted)] mb-2">Model</label>
+              <select
+                value={model}
+                onChange={e => setModel(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm outline-none"
+              >
+                {MODELS.map(m => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              onClick={handleSaveApiKey}
+              className="px-4 py-2 rounded-lg bg-brand-500 hover:bg-brand-600 text-white font-medium text-sm transition-colors"
+            >
+              Save API settings
+            </button>
+          </div>
+        </div>
+
+        {/* Profile */}
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6">
+          <h2 className="text-lg font-semibold mb-4">Profile</h2>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Display name</label>
+              <input
+                type="text"
+                value={displayName}
+                onChange={e => setDisplayName(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] focus:border-brand-500 outline-none text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Email</label>
+              <input
+                type="email"
+                value={user?.email || ''}
+                disabled
+                className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-dim)] text-sm cursor-not-allowed"
+              />
+            </div>
+            <button
+              onClick={handleSaveProfile}
+              disabled={saving}
+              className="px-4 py-2 rounded-lg bg-brand-500 hover:bg-brand-600 text-white font-medium text-sm transition-colors disabled:opacity-50"
+            >
+              {saving ? 'Saving...' : 'Save changes'}
+            </button>
+          </div>
+        </div>
+
+        {/* Danger zone */}
+        <div className="bg-[var(--surface)] border border-red-500/20 rounded-xl p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <AlertTriangle className="w-5 h-5 text-red-400" />
+            <h2 className="text-lg font-semibold text-red-400">Danger zone</h2>
+          </div>
+          <p className="text-sm text-[var(--text-muted)] mb-4">
+            Permanently delete your account and all data. This cannot be undone.
+          </p>
+          {deleteConfirm ? (
+            <div className="space-y-3">
+              <p className="text-sm text-red-400 font-medium">Are you sure? This will permanently delete your account, conversations, memories, and all data.</p>
+              <div className="flex gap-2">
+                <button
+                  className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium transition-colors"
+                >
+                  Yes, delete my account
+                </button>
+                <button
+                  onClick={() => setDeleteConfirm(false)}
+                  className="px-4 py-2 rounded-lg border border-[var(--border)] text-[var(--text-muted)] text-sm font-medium hover:bg-[var(--surface-2)] transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setDeleteConfirm(true)}
+              className="px-4 py-2 rounded-lg border border-red-500/40 text-red-400 hover:bg-red-500/10 text-sm font-medium transition-colors"
+            >
+              Delete account
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}

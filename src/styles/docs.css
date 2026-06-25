@@ -1,0 +1,53 @@
+/* Docs-specific styles */
+.docs-content h1 {
+  scroll-margin-top: 80px;
+}
+.docs-content h2 {
+  scroll-margin-top: 80px;
+}
+.docs-content h3 {
+  scroll-margin-top: 80px;
+}
+
+/* Smooth accordion transitions */
+.docs-content details summary {
+  transition: color 0.15s ease;
+}
+.docs-content details summary:hover {
+  color: var(--text);
+}
+
+/* Code blocks in docs */
+.docs-content code {
+  background: var(--surface-2);
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  font-size: 0.875em;
+}
+
+/* Table styling */
+.docs-content table {
+  border-collapse: collapse;
+}
+.docs-content th {
+  text-align: left;
+}
+.docs-content td, .docs-content th {
+  padding: 0.5rem 0.75rem;
+}
+
+/* Sidebar active indicator */
+.docs-sidebar-active {
+  position: relative;
+}
+.docs-sidebar-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  background: var(--brand);
+  border-radius: 2px;
+}

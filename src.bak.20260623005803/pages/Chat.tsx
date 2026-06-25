@@ -1,0 +1,1022 @@
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../hooks/useAuth'
+import { useAdmin } from '../hooks/useAdmin'
+import { marked } from 'marked'
+import { formatCreditsShort, formatPricingShort } from '../lib/credits'
+import type { ProviderRate, CreditUsage } from '../lib/credits'
+
+marked.setOptions({ breaks: true, gfm: true })
+
+interface Message {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: number
+}
+
+interface Identity {
+  name: string
+  avatar_emoji: string
+}
+
+interface ApiKey {
+  id: string
+  provider: string
+  label?: string
+  keyPreview: string
+  createdAt: string
+}
+
+const PROVIDERS = [
+  { id: 'ollama', name: 'Ollama Cloud', model: 'glm-5.1:cloud', icon: '🦙' },
+  { id: 'anthropic', name: 'Claude', model: 'claude-sonnet-4-20250514', icon: '🟣' },
+  { id: 'openai', name: 'ChatGPT', model: 'gpt-4o', icon: '🟢' },
+] as const
+
+type ProviderId = 'ollama' | 'anthropic' | 'openai'
+
+const modelMap: Record<string, string> = {
+  ollama: 'glm-5.1:cloud',
+  anthropic: 'claude-sonnet-4-20250514',
+  openai: 'gpt-4o',
+}
+
+const SUGGESTIONS = [
+  { icon: '💡', label: 'Explain a concept', prompt: 'Explain ' },
+  { icon: '📝', label: 'Write something', prompt: 'Write ' },
+  { icon: '🧠', label: 'Brainstorm ideas', prompt: 'Brainstorm ideas for ' },
+  { icon: '🔧', label: 'Help with code', prompt: 'Help me write code to ' },
+]
+
+interface ChatProps {
+  conversationId?: string | null
+  onConversationChange?: (id: string | null) => void
+}
+
+export default function Chat({ conversationId: initialConversationId, onConversationChange }: ChatProps) {
+  const { user, accessToken, logout } = useAuth()
+  const userTier = (user as any)?.tier || (user as any)?.subscription?.tier_id || "community"
+  const availableProviders = userTier === 'pro' || userTier === 'studio' || userTier === 'enterprise' || (user as any)?.isAdmin
+    ? PROVIDERS
+    : PROVIDERS.filter(p => p.id === "ollama")
+  const { isAdmin } = useAdmin()
+  const navigate = useNavigate()
+  const [messages, setMessages] = useState<Message[]>([])
+  const [input, setInput] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [agentIdentity, setAgentIdentity] = useState<Identity>({ name: 'Lodestone', avatar_emoji: '🪨' })
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const abortRef = useRef<AbortController | null>(null)
+  const [conversationId, setConversationId] = useState<string | null>(initialConversationId || null)
+
+  // Greeting state
+  const [greeting, setGreeting] = useState<{greeting: string, agentName: string, context: any, suggestions: {icon: string, label: string, prompt: string}[]} | null>(null)
+
+  // /recall state
+  const [showRecall, setShowRecall] = useState(false)
+  const [recallQuery, setRecallQuery] = useState('')
+  const [recallResults, setRecallResults] = useState<any>(null)
+  const [recallLoading, setRecallLoading] = useState(false)
+
+  // Template state
+  const [templates, setTemplates] = useState<any[]>([])
+  const [showTemplates, setShowTemplates] = useState(false)
+
+  // Streaming state
+  const [isStreaming, setIsStreaming] = useState(false)
+
+  // Share state
+  const [sharing, setSharing] = useState(false)
+  const [shareUrl, setShareUrl] = useState<string | null>(null)
+
+  // Provider state
+  const [provider, setProvider] = useState<ProviderId>(
+    (localStorage.getItem('lodestone_provider') as ProviderId) || 'ollama'
+  )
+  const [providerDropdownOpen, setProviderDropdownOpen] = useState(false)
+  const providerDropdownRef = useRef<HTMLDivElement>(null)
+
+  // File upload state
+  const [attachedFiles, setAttachedFiles] = useState<{id: string, name: string, size: number}[]>([])
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Install prompt state
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false)
+
+  useEffect(() => {
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true
+    const dismissed = localStorage.getItem('lodestone_install_dismissed')
+    if (!isStandalone && !dismissed) {
+      setShowInstallPrompt(true)
+    }
+  }, [])
+
+  // API key + credit state
+  const apiKey = localStorage.getItem('lodestone_api_key') || ''
+  const model = localStorage.getItem('lodestone_model') || modelMap[provider]
+  const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
+  const [creditUsage, setCreditUsage] = useState<CreditUsage | null>(null)
+  const [providerRates, setProviderRates] = useState<ProviderRate[]>([])
+
+  const getToken = useCallback(() => accessToken || localStorage.getItem('lodestone_access_token'), [accessToken])
+
+  // Sync conversationId from prop
+  useEffect(() => {
+    if (initialConversationId && initialConversationId !== conversationId) {
+      setConversationId(initialConversationId)
+      loadConversation(initialConversationId)
+    } else if (!initialConversationId && conversationId) {
+      setMessages([])
+      setConversationId(null)
+    }
+  }, [initialConversationId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Close provider dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (providerDropdownRef.current && !providerDropdownRef.current.contains(e.target as Node)) {
+        setProviderDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  // Fetch greeting on mount
+  useEffect(() => {
+    const token = getToken()
+    if (!token) return
+    fetch('/api/chat/greeting', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setGreeting(data) })
+      .catch(() => {})
+  }, [getToken])
+
+  // Fetch templates
+  useEffect(() => {
+    fetch('/api/chat/templates')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.templates) setTemplates(data.templates) })
+      .catch(() => {})
+  }, [])
+
+  // /recall command handler
+  const handleRecall = async (query: string) => {
+    const token = getToken()
+    if (!token) return
+    setRecallLoading(true)
+    try {
+      const res = await fetch(`/api/chat/recall?q=${encodeURIComponent(query)}&limit=10`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setRecallResults(data)
+      }
+    } catch {} finally {
+      setRecallLoading(false)
+    }
+  }
+
+  // Fetch API keys
+  useEffect(() => {
+    const token = getToken()
+    if (!token) return
+    fetch('/api/keys', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : { keys: [] })
+      .then(data => setApiKeys(data.keys || []))
+      .catch(() => {})
+  }, [getToken])
+
+  // Fetch credit usage
+  useEffect(() => {
+    const token = getToken()
+    if (!token) return
+
+    const loadCredits = async () => {
+      try {
+        let res = await fetch('/api/usage/credits', { headers: { Authorization: `Bearer ${token}` } })
+        if (res.ok) {
+          const data = await res.json()
+          setCreditUsage(data)
+          return
+        }
+        res = await fetch('/api/usage/tokens', { headers: { Authorization: `Bearer ${token}` } })
+        if (res.ok) {
+          const data = await res.json()
+          setCreditUsage(data)
+        }
+      } catch {}
+    }
+    loadCredits()
+  }, [getToken])
+
+  // Fetch provider rates
+  useEffect(() => {
+    const token = getToken()
+    if (!token) return
+    fetch('/api/usage/provider-rates', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.providers) setProviderRates(data.providers)
+      })
+      .catch(() => {})
+  }, [getToken])
+
+  // Derive connection status
+  const currentProviderInfo = availableProviders.find(p => p.id === provider) || PROVIDERS[0]
+  const hasKeyForProvider = apiKeys.some(k => k.provider === provider) || (provider === 'ollama' && !!apiKey)
+
+  const getInputPer1M = (providerId: string): number => {
+    const rate = providerRates.find(r => r.provider === providerId && r.isDefault)
+    if (rate) return rate.inputPer1M
+    const defaults: Record<string, number> = { ollama: 0.084, anthropic: 3.15, openai: 2.63 }
+    return defaults[providerId] ?? 1
+  }
+
+  const hasByKey = (providerId: string): boolean => {
+    return apiKeys.some(k => k.provider === providerId) || (providerId === 'ollama' && !!apiKey)
+  }
+
+  const usagePercent = creditUsage
+    ? (creditUsage.monthlyCredits === -1 ? 0 : (creditUsage.creditsUsed / creditUsage.monthlyCredits) * 100)
+    : 0
+  const connectionStatus = hasKeyForProvider
+    ? { label: 'Connected', color: 'bg-green-500', textColor: 'text-green-400' }
+    : creditUsage && creditUsage.creditsRemaining > 0
+      ? { label: 'Using included credits', color: 'bg-yellow-500', textColor: 'text-yellow-400' }
+      : { label: 'No credits', color: 'bg-red-500', textColor: 'text-red-400' }
+
+  const handleProviderChange = (id: ProviderId) => {
+    setProvider(id)
+    localStorage.setItem('lodestone_provider', id)
+    localStorage.setItem('lodestone_model', modelMap[id])
+    setProviderDropdownOpen(false)
+  }
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files?.length) return
+    setUploading(true)
+    const token = getToken()
+    if (!token) return
+
+    for (const file of Array.from(files)) {
+      const formData = new FormData()
+      formData.append('file', file)
+      try {
+        const res = await fetch('/api/chat/upload', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        })
+        if (res.ok) {
+          const data = await res.json()
+          setAttachedFiles(prev => [...prev, { id: data.id, name: data.name, size: data.size }])
+        } else {
+          const err = await res.json().catch(() => ({}))
+          window.dispatchEvent(new CustomEvent('app-toast', { detail: { message: `Upload failed: ${err.error || 'Unknown error'}`, type: 'error' } }))
+        }
+      } catch {
+        window.dispatchEvent(new CustomEvent('app-toast', { detail: { message: 'Upload failed', type: 'error' } }))
+      }
+    }
+    setUploading(false)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  // Scroll to bottom
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+  }, [messages, loading])
+
+  // Load agent identity
+  useEffect(() => {
+    const token = getToken()
+    if (!token) return
+    fetch('/api/identity', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.name) setAgentIdentity({ name: data.name, avatar_emoji: data.avatar_emoji || '🪨' })
+      })
+      .catch(() => {})
+  }, [getToken])
+
+  // Load messages for a conversation
+  const loadConversation = useCallback(async (id: string) => {
+    const token = getToken()
+    if (!token) return
+    try {
+      const res = await fetch(`/api/chat/conversations/${id}/messages`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setMessages(data.messages.map((m: any) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          timestamp: new Date(m.created_at).getTime()
+        })))
+        setConversationId(id)
+      }
+    } catch {
+      // Silently fail
+    }
+  }, [getToken])
+
+  const startNewChat = () => {
+    setMessages([])
+    setConversationId(null)
+    setInput('')
+    setError(null)
+    if (onConversationChange) onConversationChange(null)
+    navigate('/chat', { replace: true })
+  }
+
+  const handleSuggestionClick = (prompt: string) => {
+    setInput(prompt)
+    inputRef.current?.focus()
+  }
+
+  const sendMessage = async () => {
+    if (!input.trim() || loading) return
+
+    // /recall command
+    if (input.trim().startsWith('/recall')) {
+      const query = input.trim().replace(/^\/recall\s*/, '')
+      setShowRecall(true)
+      setRecallQuery(query)
+      await handleRecall(query)
+      setInput('')
+      return
+    }
+
+    // /task command - creates a commitment
+    if (input.trim().startsWith('/task')) {
+      const taskContent = input.trim().replace(/^\/task\s*/, '')
+      if (taskContent) {
+        const token = getToken()
+        try {
+          const res = await fetch('/api/chat/commitments', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ content: taskContent })
+          })
+          if (res.ok) {
+            window.dispatchEvent(new CustomEvent('app-toast', { detail: { message: `✅ Task created: "${taskContent}"`, type: 'success' } }))
+            setMessages(prev => [...prev,
+              { id: crypto.randomUUID(), role: 'assistant' as const, content: `I've noted that task: "${taskContent}". I'll remind you about it.`, timestamp: Date.now() }
+            ])
+            window.dispatchEvent(new CustomEvent('conversations-changed'))
+          }
+        } catch {}
+        setInput('')
+        return
+      } else {
+        setInput('/task ')
+        inputRef.current?.focus()
+        return
+      }
+    }
+
+    // /template command - start a template session
+    if (input.trim().startsWith('/') && !input.trim().startsWith('/recall') && !input.trim().startsWith('/task')) {
+      const templateId = input.trim().substring(1).split(' ')[0]
+      const template = templates.find(t => t.id === templateId)
+      if (template) {
+        const userContent = input.trim().substring(templateId.length + 2).trim() || `Let's start a ${template.name} session.`
+        if (!apiKey && !getToken()) {
+          setError('Add your API key in Settings to start chatting.')
+          return
+        }
+        const userMsg: Message = { id: crypto.randomUUID(), role: 'user', content: userContent, timestamp: Date.now() }
+        setMessages(prev => [...prev, userMsg])
+        setInput('')
+        setLoading(true)
+        setError(null)
+
+        const controller = new AbortController()
+        abortRef.current = controller
+
+        try {
+          const token = getToken()
+          const currentModel = localStorage.getItem('lodestone_model') || modelMap[provider]
+          const currentProvider = localStorage.getItem('lodestone_provider') || provider
+
+          const response = await fetch('/api/chat/stream', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+              'x-api-key': apiKey || '',
+            },
+            body: JSON.stringify({ model: currentModel, content: userContent, conversationId, provider: currentProvider, template: templateId }),
+            signal: controller.signal,
+          })
+
+          if (!response.ok) {
+            const data = await response.json().catch(() => ({}))
+            if (response.status === 401) {
+              setError('Invalid API key. Check your key in Settings.')
+            } else if (response.status === 429) {
+              setError('Rate limited. Please wait a moment and try again.')
+            } else {
+              setError(`Error: ${response.status}`)
+            }
+            setLoading(false)
+            return
+          }
+
+          // Read SSE stream
+          const reader = response.body!.getReader()
+          const decoder = new TextDecoder()
+          let buffer = ''
+          let assistantMsgId = crypto.randomUUID()
+          let assistantContent = ''
+          let streamConvId: string | null = null
+
+          setMessages(prev => [...prev, { id: assistantMsgId, role: 'assistant', content: '', timestamp: Date.now() }])
+
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            buffer += decoder.decode(value, { stream: true })
+            const lines = buffer.split('\n')
+            buffer = lines.pop() || ''
+            for (const line of lines) {
+              if (!line.startsWith('data: ')) continue
+              try {
+                const data = JSON.parse(line.slice(6))
+                if (data.type === 'start') {
+                  streamConvId = data.conversationId
+                } else if (data.type === 'token') {
+                  assistantContent += data.content
+                  setMessages(prev => prev.map(m => m.id === assistantMsgId ? { ...m, content: assistantContent } : m))
+                } else if (data.type === 'done') {
+                  streamConvId = data.conversationId || streamConvId
+                } else if (data.type === 'error') {
+                  setError(data.error || 'Stream error')
+                }
+              } catch {}
+            }
+          }
+
+          if (streamConvId) {
+            setConversationId(streamConvId)
+            navigate(`/chat/${streamConvId}`, { replace: true })
+            window.dispatchEvent(new CustomEvent('conversations-changed'))
+            if (onConversationChange) onConversationChange(streamConvId)
+          }
+          setAttachedFiles([])
+        } catch (err: any) {
+          if (err.name !== 'AbortError') {
+            setError('Connection error. Check your internet and API key.')
+          }
+        } finally {
+          setLoading(false)
+          abortRef.current = null
+        }
+        return
+      }
+    }
+
+    if (!apiKey && !getToken()) {
+      setError('Add your API key in Settings to start chatting.')
+      return
+    }
+
+    const userMsg: Message = { id: crypto.randomUUID(), role: 'user', content: input.trim(), timestamp: Date.now() }
+    setMessages(prev => [...prev, userMsg])
+    setInput('')
+    setLoading(true)
+    setError(null)
+
+    if (inputRef.current) inputRef.current.style.height = 'auto'
+
+    const controller = new AbortController()
+    abortRef.current = controller
+
+    try {
+      const token = getToken()
+      const currentModel = localStorage.getItem('lodestone_model') || modelMap[provider]
+      const currentProvider = localStorage.getItem('lodestone_provider') || provider
+
+      const response = await fetch('/api/chat/message', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          'x-api-key': apiKey || '',
+        },
+        body: JSON.stringify({ model: currentModel, content: userMsg.content, conversationId, provider: currentProvider, fileIds: attachedFiles.map(f => f.id) }),
+        signal: controller.signal,
+      })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        if (response.status === 401) {
+          setError('Invalid API key. Check your key in Settings.')
+        } else if (response.status === 429) {
+          setError('Rate limited. Please wait a moment and try again.')
+        } else if (data?.code === 'CREDITS_EXCEEDED' || data?.code === 'QUOTA_EXCEEDED') {
+          setError("You've reached your monthly limit. Add more credits or bring your own API key in Settings.")
+        } else {
+          setError(`Error: ${response.status}`)
+        }
+        setLoading(false)
+        return
+      }
+
+      const data = await response.json()
+      const reply = data.content || 'No response'
+
+      if (data.conversationId) {
+        setConversationId(data.conversationId)
+        navigate(`/chat/${data.conversationId}`, { replace: true })
+        window.dispatchEvent(new CustomEvent('conversations-changed'))
+        if (onConversationChange) onConversationChange(data.conversationId)
+      }
+
+      setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'assistant', content: reply, timestamp: Date.now() }])
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        setError('Connection error. Check your internet and API key.')
+      }
+    } finally {
+      setLoading(false)
+      abortRef.current = null
+    }
+  }
+
+
+  // Share conversation
+  const handleShare = async () => {
+    if (!conversationId || sharing) return
+    setSharing(true)
+    const token = getToken()
+    try {
+      const res = await fetch('/api/chat/share', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ conversationId })
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setShareUrl(data.shareUrl)
+        await navigator.clipboard.writeText(data.shareUrl)
+        window.dispatchEvent(new CustomEvent('app-toast', { detail: { message: 'Share link copied to clipboard!', type: 'success' } }))
+      }
+    } catch {} finally {
+      setSharing(false)
+    }
+  }
+
+  const formatTime = (ts: number) => {
+    return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  }
+
+  return (
+    <div className="flex h-full overflow-hidden relative">
+      {/* Recall overlay */}
+      {showRecall && (
+        <div className="absolute inset-0 z-40 bg-[var(--bg)] p-4 overflow-y-auto" style={{ background: 'var(--bg)' }}>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-[var(--text)]">🧠 Recall</h3>
+            <button onClick={() => { setShowRecall(false); setRecallResults(null) }} className="p-1.5 rounded-lg hover:bg-[var(--surface-2)] text-[var(--text-muted)]">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <input
+            type="text"
+            value={recallQuery}
+            onChange={e => { setRecallQuery(e.target.value); if (e.target.value.trim()) handleRecall(e.target.value.trim()) }}
+            placeholder="Search memories..."
+            className="w-full px-3 py-2 rounded-lg border border-[var(--border)] text-sm mb-4"
+            style={{ background: 'var(--surface-2)', color: 'var(--text)' }}
+            autoFocus
+          />
+          {recallLoading && <p className="text-sm text-[var(--text-muted)]">Searching...</p>}
+          {recallResults && (
+            <>
+              {recallResults.memories?.length > 0 && (
+                <div className="mb-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)] mb-2">Memories</p>
+                  {recallResults.memories.map((m: any) => (
+                    <div key={m.id} className="py-2 px-3 rounded-lg hover:bg-[var(--surface-2)] cursor-pointer text-sm text-[var(--text)] mb-1"
+                      onClick={() => { setInput(`Tell me about: ${m.content}`); setShowRecall(false); inputRef.current?.focus() }}
+                    >
+                      <span className="text-xs text-[var(--text-dim)] mr-2">{m.category}</span>
+                      {m.content}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {recallResults.commitments?.length > 0 && (
+                <div className="mb-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)] mb-2">Commitments</p>
+                  {recallResults.commitments.map((c: any) => (
+                    <div key={c.id} className="py-2 px-3 rounded-lg hover:bg-[var(--surface-2)] text-sm text-[var(--text)] mb-1">
+                      <span className="text-xs text-amber-400 mr-2">pending</span>
+                      {c.content}
+                      {c.due_date && <span className="text-xs text-[var(--text-dim)] ml-2">due {new Date(c.due_date).toLocaleDateString()}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {recallResults.recentConversations?.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)] mb-2">Recent Conversations</p>
+                  {recallResults.recentConversations.map((c: any) => (
+                    <div key={c.id} className="py-2 px-3 rounded-lg hover:bg-[var(--surface-2)] cursor-pointer text-sm text-[var(--text)] mb-1"
+                      onClick={() => { navigate(`/chat/${c.id}`); setShowRecall(false) }}
+                    >
+                      💬 {c.title || 'New chat'}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {(!recallResults.memories?.length && !recallResults.commitments?.length && !recallResults.recentConversations?.length) && (
+                <p className="text-sm text-[var(--text-muted)]">No results found</p>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Main Chat Area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Header — desktop */}
+        <div className="hidden md:flex items-center justify-between px-4 py-2.5 border-b" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={startNewChat}
+              className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface-2)] transition-colors"
+              title="New Chat"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+            </button>
+            <span className="text-lg">{agentIdentity.avatar_emoji}</span>
+            <span className="font-medium text-[var(--text)]">{agentIdentity.name}</span>
+            {conversationId && (
+              <span className="text-xs text-[var(--text-dim)] ml-1">· Chat</span>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            {/* Provider dropdown */}
+            <div className="relative" ref={providerDropdownRef}>
+              <button
+                onClick={() => setProviderDropdownOpen(!providerDropdownOpen)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border)] text-sm text-[var(--text)] hover:border-[var(--brand)] hover:bg-[var(--surface-2)] transition-colors"
+              >
+                <span>{currentProviderInfo.icon}</span>
+                <span>{currentProviderInfo.name}</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform ${providerDropdownOpen ? 'rotate-180' : ''}`}>
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </button>
+              {providerDropdownOpen && (
+                <div className="absolute right-0 top-full mt-1 w-72 bg-[var(--surface)] border border-[var(--border)] rounded-lg shadow-xl z-50 py-1 animate-fade-in">
+                  {availableProviders.map(p => {
+                    const byok = hasByKey(p.id)
+                    const inputPer1M = getInputPer1M(p.id)
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={() => handleProviderChange(p.id as ProviderId)}
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-[var(--surface-2)] transition-colors ${
+                          provider === p.id ? 'text-brand-400' : 'text-[var(--text)]'
+                        }`}
+                      >
+                        <span className="text-base">{p.icon}</span>
+                        <span className="flex-1">{p.name}</span>
+                        <span className="text-xs text-[var(--text-dim)]">
+                          {byok ? 'Your key · No charge' : formatPricingShort(inputPer1M)}
+                        </span>
+                        {provider === p.id && (
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-brand-400">
+                            <polyline points="20 6 9 17 4 12"/>
+                          </svg>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+            {/* Share button */}
+            {conversationId && messages.length > 0 && (
+              <button
+                onClick={handleShare}
+                disabled={sharing}
+                className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface-2)] transition-colors"
+                title="Share conversation"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                </svg>
+              </button>
+            )}
+            {/* Connection status */}
+            <span className="flex items-center gap-1.5 text-xs text-[var(--text-dim)]">
+              <span className={`w-2 h-2 rounded-full ${connectionStatus.color}`} />
+              <span className={connectionStatus.textColor}>{connectionStatus.label}</span>
+            </span>
+          </div>
+        </div>
+
+        {/* Mobile header — chat */}
+        <div className="flex md:hidden items-center gap-2 px-3 py-2 border-b" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+          <span className="text-lg">{agentIdentity.avatar_emoji}</span>
+          <span className="font-medium text-[var(--text)] text-sm">{agentIdentity.name}</span>
+          <div className="flex-1" />
+          <div className="relative" ref={providerDropdownRef}>
+            <button
+              onClick={() => setProviderDropdownOpen(!providerDropdownOpen)}
+              className="flex items-center gap-1 px-2 py-1 rounded-lg border border-[var(--border)] text-xs text-[var(--text-muted)] hover:text-[var(--text)] hover:border-[var(--brand)] transition-colors"
+            >
+              <span>{currentProviderInfo.icon}</span>
+              <span>{currentProviderInfo.name}</span>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform ${providerDropdownOpen ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            {providerDropdownOpen && (
+              <div className="absolute right-0 top-full mt-1 w-56 bg-[var(--surface)] border border-[var(--border)] rounded-lg shadow-xl z-50 py-1">
+                {availableProviders.map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => handleProviderChange(p.id as ProviderId)}
+                    className={`w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-[var(--surface-2)] transition-colors ${provider === p.id ? 'text-brand-400' : 'text-[var(--text)]'}`}
+                  >
+                    <span>{p.icon}</span>
+                    <span>{p.name}</span>
+                    {provider === p.id && <span className="ml-auto">✓</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Messages */}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4" style={{ background: 'var(--bg)' }}>
+          {messages.length === 0 && !loading && (
+            <div className="flex flex-col items-center justify-center h-full text-center py-12 px-4">
+              <div className="text-5xl mb-4">{agentIdentity.avatar_emoji}</div>
+              <h2 className="text-xl font-semibold text-[var(--text)] mb-1">
+                {greeting ? `${greeting.greeting}` : 'Welcome'}
+              </h2>
+              <p className="text-sm text-[var(--text-muted)] mb-6 max-w-md">
+                {greeting?.context?.overdue?.length > 0
+                  ? `You have ${greeting?.context?.overdue?.length} overdue item${greeting?.context?.overdue?.length > 1 ? 's' : ''}. Let's get caught up.`
+                  : greeting?.context?.totalMemories > 0
+                    ? `I remember ${greeting?.context?.totalMemories} things about you. What can I help with?`
+                    : 'Your AI assistant is ready. Type a message or pick a starting point below.'
+                }
+              </p>
+
+              {/* Suggestion cards */}
+              <div className="grid grid-cols-2 gap-2 max-w-md w-full">
+                {(greeting?.suggestions || SUGGESTIONS).slice(0, 4).map((s, i) => (
+                  <button
+                    key={i}
+                    onClick={() => { setInput(s.prompt); inputRef.current?.focus() }}
+                    className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-[var(--border)] text-left hover:border-[var(--brand)] hover:bg-brand-500/5 transition-all text-sm"
+                    style={{ background: 'var(--surface-2)' }}
+                  >
+                    <span className="text-base">{s.icon}</span>
+                    <span className="text-[var(--text)]">{s.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Overdue commitments */}
+              {greeting?.context?.overdue?.length > 0 && (
+                <div className="mt-4 max-w-md w-full">
+                  <p className="text-xs text-amber-400 mb-2">⚠️ Overdue commitments</p>
+                  {greeting?.context?.overdue?.slice(0, 3).map((c: any, i: number) => (
+                    <div key={i} className="text-xs text-[var(--text-muted)] text-left py-1">
+                      • {c.content} {c.dueDate && <span className="text-amber-400">(was due {new Date(c.dueDate).toLocaleDateString()})</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Template picker */}
+              {templates.length > 0 && (
+                <div className="mt-4 max-w-md w-full">
+                  <button
+                    onClick={() => setShowTemplates(!showTemplates)}
+                    className="text-xs text-[var(--text-dim)] hover:text-[var(--text)] transition-colors flex items-center gap-1"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg>
+                    Conversation templates
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform ${showTemplates ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9"/></svg>
+                  </button>
+                  {showTemplates && (
+                    <div className="mt-2 space-y-1.5">
+                      {templates.map(t => (
+                        <button
+                          key={t.id}
+                          onClick={() => {
+                            setInput(`/${t.id} `)
+                            setShowTemplates(false)
+                            inputRef.current?.focus()
+                          }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-sm hover:bg-[var(--surface-2)] transition-colors border border-[var(--border)]"
+                        >
+                          <span className="text-lg">{t.icon}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-[var(--text)]">{t.name}</p>
+                            <p className="text-xs text-[var(--text-dim)]">{t.description}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {messages.map(msg => (
+            <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              {msg.role === 'assistant' && (
+                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-brand-500/20 flex items-center justify-center text-sm mr-2 mt-1">
+                  {agentIdentity.avatar_emoji}
+                </div>
+              )}
+              <div className={`max-w-[75%] ${msg.role === 'user' ? 'order-1' : ''}`}>
+                <div
+                  className={`px-4 py-3 text-sm leading-relaxed ${
+                    msg.role === 'user'
+                      ? 'bg-brand-500 text-white rounded-2xl rounded-br-md'
+                      : 'bg-[var(--surface-2)] text-[var(--text)] rounded-2xl rounded-bl-md'
+                  }`}
+                >
+                  {msg.role === 'assistant' ? (
+                    <div>
+                      <div className="prose prose-sm prose-invert max-w-none [&_a]:text-brand-400 [&_code]:text-brand-300 [&_pre]:bg-[var(--bg)]" dangerouslySetInnerHTML={{ __html: marked(msg.content) }} />
+                      {isStreaming && msg.id === messages[messages.length - 1]?.id && msg.content && (
+                        <span className="inline-block w-1.5 h-4 bg-brand-500 animate-pulse ml-0.5 -mb-0.5" />
+                      )}
+                    </div>
+                  ) : (
+                    <span className="whitespace-pre-wrap">{msg.content}</span>
+                  )}
+                </div>
+                <div className={`text-[10px] text-[var(--text-dim)] mt-1 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
+                  {formatTime(msg.timestamp)}
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {loading && (
+            <div className="flex justify-start">
+              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-brand-500/20 flex items-center justify-center text-sm mr-2 mt-1">
+                {agentIdentity.avatar_emoji}
+              </div>
+              <div className="px-4 py-3 rounded-2xl rounded-bl-md bg-[var(--surface-2)]">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 bg-brand-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-2 h-2 bg-brand-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-2 h-2 bg-brand-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div className="text-center py-2">
+              <span className="inline-flex flex-col items-center gap-2 px-4 py-3 rounded-xl text-sm bg-red-500/10 text-red-400 border border-red-500/30">
+                {error}
+                {(error.includes('Settings') || error.includes('credits') || error.includes('key')) && (
+                  <button
+                    onClick={() => window.dispatchEvent(new CustomEvent('open-panel', { detail: 'settings' }))}
+                    className="text-brand-400 hover:underline text-xs"
+                  >
+                    Open Settings →
+                  </button>
+                )}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Install prompt */}
+        {showInstallPrompt && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-brand-500/10 border border-brand-500/20 text-sm text-[var(--text)] mx-3 md:mx-4 mt-2 rounded-xl">
+            <span className="text-base">📱</span>
+            <span className="flex-1">Add Lodestone to your home screen for a better experience.</span>
+            <button onClick={() => { setShowInstallPrompt(false); localStorage.setItem('lodestone_install_dismissed', '1') }} className="text-[var(--text-dim)] hover:text-[var(--text)]">✕</button>
+          </div>
+        )}
+
+        {/* Input */}
+        <div className="border-t p-3 md:p-4 flex-shrink-0" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+          {/* Mobile provider selector */}
+          {providerDropdownOpen && (
+            <div className="md:hidden mb-2 flex gap-1.5 flex-wrap">
+              {availableProviders.map(p => {
+                const byok = hasByKey(p.id)
+                const inputPer1M = getInputPer1M(p.id)
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => handleProviderChange(p.id as ProviderId)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
+                      provider === p.id
+                        ? 'bg-brand-500 text-white'
+                        : 'bg-[var(--surface-2)] text-[var(--text-muted)] hover:text-[var(--text)]'
+                    }`}
+                  >
+                    {p.icon} {p.name} {byok ? '(Your key)' : `(${formatPricingShort(inputPer1M)})`}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+          {/* Quick actions */}
+          {!input.trim() && !loading && (
+            <div className="flex gap-1.5 mb-2 max-w-3xl mx-auto flex-wrap">
+              <button onClick={() => { setInput('/recall '); inputRef.current?.focus() }} className="py-2 px-3 text-sm md:py-1 md:px-2.5 md:text-xs font-medium bg-[var(--surface-2)] text-[var(--text-muted)] hover:text-[var(--text)] hover:border-[var(--brand)] border border-[var(--border)] rounded-lg transition-colors">🧠 Recall</button>
+              <button onClick={() => { setInput('Help me write '); inputRef.current?.focus() }} className="py-2 px-3 text-sm md:py-1 md:px-2.5 md:text-xs font-medium bg-[var(--surface-2)] text-[var(--text-muted)] hover:text-[var(--text)] hover:border-[var(--brand)] border border-[var(--border)] rounded-lg transition-colors">✏️ Write</button>
+              <button onClick={() => { setInput('Help me brainstorm ideas for '); inputRef.current?.focus() }} className="py-2 px-3 text-sm md:py-1 md:px-2.5 md:text-xs font-medium bg-[var(--surface-2)] text-[var(--text-muted)] hover:text-[var(--text)] hover:border-[var(--brand)] border border-[var(--border)] rounded-lg transition-colors">💡 Brainstorm</button>
+              <button onClick={() => { setInput('Help me decide: '); inputRef.current?.focus() }} className="py-2 px-3 text-sm md:py-1 md:px-2.5 md:text-xs font-medium bg-[var(--surface-2)] text-[var(--text-muted)] hover:text-[var(--text)] hover:border-[var(--brand)] border border-[var(--border)] rounded-lg transition-colors">⚖️ Decide</button>
+            </div>
+          )}
+          {/* Hidden file input */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            className="hidden"
+            accept=".txt,.md,.csv,.json,.pdf,.png,.jpg,.jpeg,.gif,.webp"
+            multiple
+          />
+
+          {/* Attached files preview */}
+          {attachedFiles.length > 0 && (
+            <div className="flex gap-1.5 mb-2 max-w-3xl mx-auto flex-wrap">
+              {attachedFiles.map(f => (
+                <div key={f.id} className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text)]">
+                  <span>📎</span>
+                  <span className="truncate max-w-[120px]">{f.name}</span>
+                  <span className="text-[var(--text-dim)]">{(f.size / 1024).toFixed(0)}KB</span>
+                  <button onClick={() => setAttachedFiles(prev => prev.filter(a => a.id !== f.id))} className="text-[var(--text-dim)] hover:text-red-400">✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex gap-2 max-w-3xl mx-auto items-end">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="px-2.5 py-2.5 rounded-2xl text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface-2)] transition-colors flex-shrink-0"
+              title="Attach file"
+            >
+              {uploading ? (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+              ) : (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+              )}
+            </button>
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={e => {
+                setInput(e.target.value)
+                e.target.style.height = 'auto'
+                e.target.style.height = Math.min(e.target.scrollHeight, 150) + 'px'
+              }}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
+              placeholder="Type a message... (use /recall to search memories)"
+              className="flex-1 px-4 py-2.5 rounded-2xl text-base md:text-sm resize-none"
+              style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)', maxHeight: '150px' }}
+              rows={1}
+              disabled={loading}
+            />
+            <button
+              onClick={sendMessage}
+              disabled={loading || !input.trim()}
+              className="w-11 h-11 md:w-auto md:h-auto md:px-4 md:py-2.5 rounded-2xl text-white text-sm font-medium transition-colors disabled:opacity-50 flex-shrink-0 flex items-center justify-center"
+              style={{ background: 'var(--brand)' }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

@@ -1,0 +1,2103 @@
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../hooks/useAuth'
+import { useAdmin } from '../hooks/useAdmin'
+import { marked } from 'marked'
+import MarkdownRenderer from '../components/Markdown'
+import ModelCompare from '../components/ModelCompare'
+import PersonaSelector from '../components/PersonaSelector'
+import { formatCreditsShort, formatPricingShort } from '../lib/credits'
+import type { ProviderRate, CreditUsage } from '../lib/credits'
+
+const renderer = new marked.Renderer()
+renderer.code = function({ text, lang }: { text: string; lang?: string }) {
+  const language = lang || ''
+  const displayLang = language || 'code'
+  const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  return `<div class="code-block-wrapper relative group">
+  <div class="code-block-header flex items-center justify-between px-3 py-1.5 text-[10px] text-[var(--text-dim)] bg-[var(--bg)] rounded-t-lg border border-b-0 border-[var(--border)]">
+    <span>${displayLang}</span>
+    <button class="copy-code-btn opacity-0 group-hover:opacity-100 transition-opacity px-2 py-0.5 rounded text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-[var(--surface-2)]" data-code="${encodeURIComponent(text)}">Copy</button>
+  </div>
+  <pre class="!mt-0 !rounded-t-none !border-t-0"><code class="language-${language}">${escaped}</code></pre>
+</div>`
+}
+marked.setOptions({ breaks: true, gfm: true, renderer })
+
+interface Message {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: number
+  attachments?: { id: string; name: string; size: number; mimeType?: string; preview?: string }[]
+}
+
+interface Identity {
+  name: string
+  avatar_emoji: string
+}
+
+interface ApiKey {
+  id: string
+  provider: string
+  label?: string
+  keyPreview: string
+  createdAt: string
+}
+
+const PROVIDERS = [
+  { id: 'ollama', name: 'Ollama Cloud', model: 'glm-5.1:cloud', icon: '🦙' },
+  { id: 'local-ollama', name: 'Local Ollama', model: '', icon: '🖥️' },
+  { id: 'anthropic', name: 'Claude', model: 'claude-sonnet-4-20250514', icon: '🟣' },
+  { id: 'openai', name: 'ChatGPT', model: 'gpt-4o', icon: '🟢' },
+] as const
+
+type ProviderId = 'ollama' | 'local-ollama' | 'anthropic' | 'openai'
+
+const modelMap: Record<string, string> = {
+  ollama: 'glm-5.1:cloud',
+  'local-ollama': '',
+  anthropic: 'claude-sonnet-4-20250514',
+  openai: 'gpt-4o',
+}
+
+const SUGGESTIONS = [
+  { icon: '💡', label: 'Explain a concept', prompt: 'Explain ' },
+  { icon: '🔍', label: 'Search the web', prompt: 'Search for ' },
+  { icon: '🧠', label: 'Brainstorm ideas', prompt: 'Brainstorm ideas for ' },
+  { icon: '🐍', label: 'Run some code', prompt: 'Write and run Python code to ' },
+  { icon: '⏰', label: 'Set a reminder', prompt: 'Remind me to ' },
+  { icon: '🌤️', label: 'Check weather', prompt: 'What is the weather in ' },
+]
+
+interface ChatProps {
+  conversationId?: string | null
+  onConversationChange?: (id: string | null) => void
+}
+
+export default function Chat({ conversationId: initialConversationId, onConversationChange }: ChatProps) {
+  const { user, accessToken, logout } = useAuth()
+  const userTier = (user as any)?.tier || (user as any)?.subscription?.tier_id || "community"
+  // availableProviders computed after state declarations (see below)
+  const { isAdmin } = useAdmin()
+  const navigate = useNavigate()
+  const [messages, setMessages] = useState<Message[]>([])
+  const [input, setInput] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [agentIdentity, setAgentIdentity] = useState<Identity>({ name: 'Lodestone', avatar_emoji: '🪨' })
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  // Drag and drop handlers
+  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); setDragOver(true) }
+  const handleDragLeave = () => setDragOver(false)
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOver(false)
+    const files = e.dataTransfer.files
+    if (files.length && fileInputRef.current) {
+      const dt = new DataTransfer()
+      for (let i = 0; i < files.length; i++) dt.items.add(files[i])
+      fileInputRef.current.files = dt.files
+      handleFileUpload({ target: fileInputRef.current } as any)
+    }
+  }
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const abortRef = useRef<AbortController | null>(null)
+  const [conversationId, setConversationId] = useState<string | null>(initialConversationId || null)
+
+  // Greeting state
+  const [greeting, setGreeting] = useState<{greeting: string, agentName: string, context: any, suggestions: {icon: string, label: string, prompt: string}[]} | null>(null)
+
+  // /recall state
+  const [showRecall, setShowRecall] = useState(false)
+  const [recallQuery, setRecallQuery] = useState('')
+  const [recallResults, setRecallResults] = useState<any>(null)
+  const [recallLoading, setRecallLoading] = useState(false)
+
+  // Template state
+  const [templates, setTemplates] = useState<any[]>([])
+  const [showTemplates, setShowTemplates] = useState(false)
+
+  // Streaming state
+  const [isStreaming, setIsStreaming] = useState(false)
+
+  // Share state
+  const [sharing, setSharing] = useState(false)
+  const [shareUrl, setShareUrl] = useState<string | null>(null)
+
+  // Provider state
+  const [provider, setProvider] = useState<ProviderId>(
+    (localStorage.getItem('lodestone_provider') as ProviderId) || 'ollama'
+  )
+  const [providerDropdownOpen, setProviderDropdownOpen] = useState(false)
+  const providerDropdownRef = useRef<HTMLDivElement>(null)
+
+  // Shadow persona state
+  const [shadowMode, setShadowMode] = useState(false)
+  const [shadowResponse, setShadowResponse] = useState<string | null>(null)
+  const [shadowLoading, setShadowLoading] = useState(false)
+  const [shadowExpanded, setShadowExpanded] = useState(false)
+
+  // Compare mode state
+  const [compareMode, setCompareMode] = useState(false)
+  const [provider2, setProvider2] = useState<ProviderId>((localStorage.getItem('lodestone_provider2') as ProviderId) || 'anthropic')
+  const [compareLeftResponse, setCompareLeftResponse] = useState('')
+  const [compareRightResponse, setCompareRightResponse] = useState('')
+  const [compareLoading, setCompareLoading] = useState(false)
+  const [provider2DropdownOpen, setProvider2DropdownOpen] = useState(false)
+  const provider2DropdownRef = useRef<HTMLDivElement>(null)
+
+  // Local Ollama models (desktop only)
+  const isDesktopApp = typeof window !== 'undefined' && (!!(window as any).__TAURI__ || !!(window as any).__TAURI_INTERNALS__ || !!(window as any).electronAPI)
+  const [localModels, setLocalModels] = useState<{name: string; size: string}[]>([])
+  const [localOllamaDetected, setLocalOllamaDetected] = useState(false)
+  const [selectedLocalModel, setSelectedLocalModel] = useState<string>('')
+  const [modelDropdownOpen, setModelDropdownOpen] = useState(false)
+  const modelDropdownRef = useRef<HTMLDivElement>(null)
+
+  // Compute available providers (Local Ollama only shown if detected in desktop)
+  const availableProviders = (() => {
+    const base = userTier === 'pro' || userTier === 'studio' || userTier === 'enterprise' || (user as any)?.isAdmin
+      ? PROVIDERS
+      : PROVIDERS.filter(p => p.id === 'ollama' || p.id === 'local-ollama')
+    if (!localOllamaDetected || !isDesktopApp) return base.filter(p => p.id !== 'local-ollama')
+    return base
+  })()
+
+  // File upload state
+  const [attachedFiles, setAttachedFiles] = useState<{id: string, name: string, size: number, mimeType?: string, preview?: string}[]>([])
+
+  // Image paste handler
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items
+    if (!items) return
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault()
+        const file = item.getAsFile()
+        if (file) {
+          const dt = new DataTransfer()
+          dt.items.add(file)
+          if (fileInputRef.current) {
+            fileInputRef.current.files = dt.files
+            handleFileUpload({ target: fileInputRef.current } as any)
+          }
+        }
+        return
+      }
+    }
+  }
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Load system prompts
+  useEffect(() => {
+    const token = localStorage.getItem('lodestone_access_token')
+    if (!token) return
+    fetch('/api/chat/system-prompts', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(d => { if (d.prompts) setSystemPrompts(d.prompts) })
+      .catch(() => {})
+
+    // Also load user default system prompt
+    fetch('/api/user/me/preferences', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(d => { if (d.preferences?.default_system_prompt) setSystemPrompt(d.preferences.default_system_prompt) })
+      .catch(() => {})
+  }, [])
+
+  // Detect local Ollama (desktop only)
+  useEffect(() => {
+    if (!isDesktopApp) return
+    const api = (window as any).electronAPI
+    if (!api?.ollamaCheck) return
+    api.ollamaCheck().then((r: any) => {
+      if (r?.installed) {
+        setLocalOllamaDetected(true)
+        return api.ollamaListModels()
+      }
+    }).then((r: any) => {
+      if (r?.models) {
+        setLocalModels(r.models)
+        if (r.models.length > 0 && !selectedLocalModel) {
+          const saved = localStorage.getItem('lodestone_local_model')
+          const model = saved && r.models.find((m: any) => m.name === saved) ? saved : r.models[0].name
+          setSelectedLocalModel(model)
+          localStorage.setItem('lodestone_local_model', model)
+        }
+      }
+    }).catch(() => {})
+  }, [])
+
+  // Click outside model dropdown
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (modelDropdownRef.current && !modelDropdownRef.current.contains(e.target as Node)) {
+        setModelDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  // SSE notification connection
+  useEffect(() => {
+    const token = localStorage.getItem('lodestone_access_token')
+    if (!token) return
+    const es = new EventSource('/api/notifications/stream?token=' + token)
+    es.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data)
+        if (data.type === 'reminder') {
+          window.dispatchEvent(new CustomEvent('app-toast', { detail: { message: '⏰ Reminder: ' + data.content, type: 'info' } }))
+        }
+      } catch {}
+    }
+    es.onerror = () => { es.close() }
+    return () => { es.close() }
+  }, [])
+
+  // System prompt state
+  const [systemPrompt, setSystemPrompt] = useState<string>('')
+  const [showSystemPromptPicker, setShowSystemPromptPicker] = useState(false)
+  const [systemPrompts, setSystemPrompts] = useState<any[]>([])
+  const [showBranchMenu, setShowBranchMenu] = useState(false)
+
+  // Install prompt state
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false)
+
+  // Scroll to bottom state
+  const [showScrollBtn, setShowScrollBtn] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
+  const [hoveredMsg, setHoveredMsg] = useState<string | null>(null)
+
+  // TTS (read aloud) state
+  const [isSpeaking, setIsSpeaking] = useState(false)
+  const [speakingMsgId, setSpeakingMsgId] = useState<string | null>(null)
+
+  // Voice input state
+  const [isListening, setIsListening] = useState(false)
+  const recognitionRef = useRef<any>(null)
+
+  // Command palette state
+  const [showCommandPalette, setShowCommandPalette] = useState(false)
+  const conversationTitle = messages.find(m => m.role === 'user')?.content?.slice(0, 60) || 'Conversation'
+  const [commandQuery, setCommandQuery] = useState('')
+
+  const commands = [
+    { id: 'new-chat', label: 'New Chat', icon: '✨', section: 'Chat', action: () => { navigate('/chat'); setShowCommandPalette(false) } },
+    { id: 'search', label: 'Search Conversations', icon: '🔍', section: 'Chat', action: () => { setShowCommandPalette(false); document.querySelector<HTMLInputElement>('[placeholder*="Search"]')?.focus() } },
+    { id: 'export-md', label: 'Export as Markdown', icon: '📝', section: 'Chat', action: () => { exportConversation('markdown'); setShowCommandPalette(false) } },
+    { id: 'export-json', label: 'Export as JSON', icon: '📦', section: 'Chat', action: () => { exportConversation('json'); setShowCommandPalette(false) } },
+    { id: 'export-pdf', label: 'Export as PDF', icon: '📄', section: 'Chat', action: () => { exportConversation('pdf'); setShowCommandPalette(false) } },
+    { id: 'recall', label: 'Recall Memory', icon: '🧠', section: 'Chat', action: () => { setInput('/recall '); setShowCommandPalette(false); inputRef.current?.focus() } },
+    { id: 'remind', label: 'Set Reminder', icon: '⏰', section: 'Chat', action: () => { setInput('/remind '); setShowCommandPalette(false); inputRef.current?.focus() } },
+    { id: 'theme-dark', label: 'Theme: Dark', icon: '🌙', section: 'Appearance', action: () => { document.documentElement.classList.add('dark'); localStorage.setItem('lodestone_pref_theme', 'dark'); setShowCommandPalette(false) } },
+    { id: 'theme-light', label: 'Theme: Light', icon: '☀️', section: 'Appearance', action: () => { document.documentElement.classList.remove('dark'); localStorage.setItem('lodestone_pref_theme', 'light'); setShowCommandPalette(false) } },
+    { id: 'theme-system', label: 'Theme: System', icon: '💻', section: 'Appearance', action: () => { localStorage.setItem('lodestone_pref_theme', 'system'); window.matchMedia('(prefers-color-scheme: dark)').matches ? document.documentElement.classList.add('dark') : document.documentElement.classList.remove('dark'); setShowCommandPalette(false) } },
+    { id: 'settings', label: 'Open Settings', icon: '⚙️', section: 'Navigation', action: () => { navigate('/settings'); setShowCommandPalette(false) } },
+    { id: 'account', label: 'My Account', icon: '👤', section: 'Navigation', action: () => { navigate('/account'); setShowCommandPalette(false) } },
+    { id: 'memory', label: 'Memory', icon: '🧠', section: 'Navigation', action: () => { navigate('/memory'); setShowCommandPalette(false) } },
+  ]
+  const filteredCommands = commands.filter(c => c.label.toLowerCase().includes(commandQuery.toLowerCase()) || c.section.toLowerCase().includes(commandQuery.toLowerCase()))
+
+  // Voice input
+  const startListening = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SpeechRecognition) {
+      window.dispatchEvent(new CustomEvent('app-toast', { detail: { message: 'Voice input not supported in this browser', type: 'error' } }))
+      return
+    }
+    const recognition = new SpeechRecognition()
+    recognition.continuous = true
+    recognition.interimResults = true
+    recognition.lang = 'en-US'
+    recognitionRef.current = recognition
+
+    recognition.onresult = (event: any) => {
+      let transcript = ''
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        transcript += event.results[i][0].transcript
+      }
+      setInput(prev => prev ? prev + ' ' + transcript : transcript)
+    }
+    recognition.onerror = () => { setIsListening(false) }
+    recognition.onend = () => { setIsListening(false) }
+    recognition.start()
+    setIsListening(true)
+  }
+
+  const stopListening = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop()
+      recognitionRef.current = null
+    }
+    setIsListening(false)
+  }
+
+  // TTS: Read a message aloud
+  const speakMessage = (text: string, msgId: string) => {
+    window.speechSynthesis.cancel()
+    if (speakingMsgId === msgId) {
+      setIsSpeaking(false)
+      setSpeakingMsgId(null)
+      return
+    }
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.lang = 'en-US'
+    utterance.rate = 1.0
+    const voices = window.speechSynthesis.getVoices()
+    const preferred = voices.find(v => v.lang.startsWith('en') && v.localService) || voices.find(v => v.lang.startsWith('en')) || voices[0]
+    if (preferred) utterance.voice = preferred
+    utterance.onstart = () => { setIsSpeaking(true); setSpeakingMsgId(msgId) }
+    utterance.onend = () => { setIsSpeaking(false); setSpeakingMsgId(null) }
+    utterance.onerror = () => { setIsSpeaking(false); setSpeakingMsgId(null) }
+    window.speechSynthesis.speak(utterance)
+
+  // Branch conversation from a specific message
+  const branchFromMessage = async (messageId: string) => {
+    if (!conversationId) {
+      window.dispatchEvent(new CustomEvent('app-toast', { detail: { message: 'Cannot branch a new conversation', type: 'error' } }))
+      return
+    }
+    const token = getToken()
+    if (!token) return
+    try {
+      const res = await fetch(`/api/chat/conversations/${conversationId}/branch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ message_id: messageId })
+      })
+      if (res.ok) {
+        const data = await res.json()
+        window.dispatchEvent(new CustomEvent('app-toast', { detail: { message: 'Branched conversation created', type: 'success' } }))
+        navigate(`/chat/${data.conversation.id}`)
+      } else {
+        const err = await res.json().catch(() => ({}))
+        window.dispatchEvent(new CustomEvent('app-toast', { detail: { message: `Branch failed: ${err.error || 'Unknown error'}`, type: 'error' } }))
+      }
+    } catch {
+      window.dispatchEvent(new CustomEvent('app-toast', { detail: { message: 'Failed to create branch', type: 'error' } }))
+    }
+  }
+  }
+
+  const stopSpeaking = () => {
+    window.speechSynthesis.cancel()
+    setIsSpeaking(false)
+    setSpeakingMsgId(null)
+  }
+
+  // Branch conversation from a message
+  const handleBranch = async (messageIndex: number) => {
+    const token = localStorage.getItem('lodestone_access_token')
+    if (!token || !conversationId) return
+    try {
+      const msg = messages[messageIndex]
+      const res = await fetch(`/api/chat/conversations/${conversationId}/branch`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message_id: msg?.id })
+      })
+      if (res.ok) {
+        const data = await res.json()
+        window.dispatchEvent(new CustomEvent('app-toast', { detail: { message: 'Conversation branched!', type: 'success' } }))
+        window.dispatchEvent(new CustomEvent('conversations-changed'))
+        navigate(`/chat/${data.conversation.id}`)
+      }
+    } catch {
+      window.dispatchEvent(new CustomEvent('app-toast', { detail: { message: 'Failed to branch', type: 'error' } }))
+    }
+  }
+
+  // Command palette shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        setShowCommandPalette(prev => !prev)
+      }
+      if (e.key === 'Escape' && showCommandPalette) {
+        setShowCommandPalette(false)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [showCommandPalette])
+
+  // Desktop event listeners (font size, sidebar toggle, command palette)
+  useEffect(() => {
+    const handleFontSize = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      const current = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--message-font-size') || '15')
+      let next = detail?.direction === 'increase' ? current + 1 : detail?.direction === 'decrease' ? current - 1 : 15
+      next = Math.max(12, Math.min(24, next))
+      document.documentElement.style.setProperty('--message-font-size', next + 'px')
+      localStorage.setItem('lodestone_message_font_size', String(next))
+      window.dispatchEvent(new CustomEvent('app-toast', { detail: { message: 'Font size: ' + next + 'px', type: 'info' } }))
+    }
+    const handleSidebar = () => {
+      const sidebar = document.querySelector('[data-sidebar]') as HTMLElement | null
+      if (sidebar) sidebar.classList.toggle('hidden')
+    }
+    const handlePalette = () => setShowCommandPalette(prev => !prev)
+
+    document.addEventListener('font-size-change', handleFontSize)
+    document.addEventListener('toggle-sidebar', handleSidebar)
+    document.addEventListener('open-command-palette', handlePalette)
+    return () => {
+      document.removeEventListener('font-size-change', handleFontSize)
+      document.removeEventListener('toggle-sidebar', handleSidebar)
+      document.removeEventListener('open-command-palette', handlePalette)
+    }
+  }, [])
+
+  // Export conversation
+  const exportConversation = (format: 'markdown' | 'json' | 'pdf') => {
+    if (!messages.length) return
+    if (format === 'markdown') {
+      const md = messages.map(m => {
+        const role = m.role === 'user' ? '**You**' : m.role === 'assistant' ? '**Lodestone**' : '**System**'
+        const content = m.content || ''
+        return `${role}\n\n${content}\n\n---`
+      }).join('\n\n')
+      const blob = new Blob([`# ${conversationTitle || 'Conversation'}\n\n${md}`], { type: 'text/markdown' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = `${(conversationTitle || 'conversation').replace(/[^a-z0-9]/gi, '_')}.md`; a.click()
+      URL.revokeObjectURL(url)
+    } else {
+      const data = JSON.stringify({ title: conversationTitle, exported: new Date().toISOString(), messages }, null, 2)
+      const blob = new Blob([data], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = `${(conversationTitle || 'conversation').replace(/[^a-z0-9]/gi, '_')}.json`; a.click()
+      URL.revokeObjectURL(url)
+    }
+    if (format === 'pdf') {
+      // PDF export: create printable HTML and trigger print dialog
+      const msgHtml = messages.map(m => {
+        const isUser = m.role === 'user'
+        const label = isUser ? 'You' : 'Lodestone'
+        const bgStyle = isUser ? 'background:#4f46e5;color:white;text-align:right' : 'background:#f3f4f6;color:#1a1a1a'
+        return '<div style="margin:16px 0;padding:12px 16px;border-radius:12px;' + bgStyle + '"><div style="font-weight:600;font-size:12px;opacity:0.8;margin-bottom:4px">' + label + '</div><div style="line-height:1.6;white-space:pre-wrap">' + (m.content || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div></div>'
+      }).join('<div style="border-top:1px solid #e5e7eb;margin:24px 0"></div>')
+      const html = '<!DOCTYPE html><html><head><title>' + (conversationTitle || 'Conversation') + '</title><style>body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:800px;margin:0 auto;padding:20px;color:#1a1a1a}</style></head><body><h1>' + (conversationTitle || 'Conversation') + '</h1>' + msgHtml + '</body></html>'
+      const printWindow = window.open('', '_blank')
+      if (printWindow) {
+        printWindow.document.write(html)
+        printWindow.document.close()
+        printWindow.print()
+      }
+    }
+    window.dispatchEvent(new CustomEvent('app-toast', { detail: { message: `Exported as ${format.toUpperCase()}`, type: 'success' } }))
+  }
+
+  // Copy handler for code blocks
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const target = e.target as HTMLElement
+      if (target.classList.contains('copy-code-btn')) {
+        e.preventDefault()
+        const code = decodeURIComponent(target.getAttribute('data-code') || '')
+        navigator.clipboard.writeText(code).then(() => {
+          target.textContent = 'Copied!'
+          setTimeout(() => { target.textContent = 'Copy' }, 2000)
+        })
+      }
+    }
+    document.addEventListener('click', handler)
+    return () => document.removeEventListener('click', handler)
+  }, [])
+
+  // Scroll to bottom button visibility
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const onScroll = () => {
+      const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100
+      setShowScrollBtn(!nearBottom)
+    }
+    el.addEventListener('scroll', onScroll)
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [])
+
+  useEffect(() => {
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true
+    const dismissed = localStorage.getItem('lodestone_install_dismissed')
+    if (!isStandalone && !dismissed) {
+      setShowInstallPrompt(true)
+    }
+  }, [])
+
+  // API key + credit state
+  const apiKey = localStorage.getItem('lodestone_api_key') || ''
+  const model = localStorage.getItem('lodestone_model') || modelMap[provider]
+  const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
+  const [creditUsage, setCreditUsage] = useState<CreditUsage | null>(null)
+  const [providerRates, setProviderRates] = useState<ProviderRate[]>([])
+
+  const getToken = useCallback(() => accessToken || localStorage.getItem('lodestone_access_token'), [accessToken])
+
+  // Sync conversationId from prop
+  useEffect(() => {
+    if (initialConversationId && initialConversationId !== conversationId) {
+      setConversationId(initialConversationId)
+      loadConversation(initialConversationId)
+    } else if (!initialConversationId && conversationId) {
+      setMessages([])
+      setConversationId(null)
+    }
+  }, [initialConversationId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Close provider dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (providerDropdownRef.current && !providerDropdownRef.current.contains(e.target as Node)) {
+        setProviderDropdownOpen(false)
+      }
+      if (provider2DropdownRef.current && !provider2DropdownRef.current.contains(e.target as Node)) {
+        setProvider2DropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  // Fetch greeting on mount
+  useEffect(() => {
+    const token = getToken()
+    if (!token) return
+    fetch('/api/chat/greeting', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setGreeting(data) })
+      .catch(() => {})
+  }, [getToken])
+
+  // Fetch templates
+  useEffect(() => {
+    fetch('/api/chat/templates')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.templates) setTemplates(data.templates) })
+      .catch(() => {})
+  }, [])
+
+  // /recall command handler
+  const handleRecall = async (query: string) => {
+    const token = getToken()
+    if (!token) return
+    setRecallLoading(true)
+    try {
+      const res = await fetch(`/api/chat/recall?q=${encodeURIComponent(query)}&limit=10`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setRecallResults(data)
+      }
+    } catch {} finally {
+      setRecallLoading(false)
+    }
+  }
+
+  // Fetch API keys
+  useEffect(() => {
+    const token = getToken()
+    if (!token) return
+    fetch('/api/keys', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : { keys: [] })
+      .then(data => setApiKeys(data.keys || []))
+      .catch(() => {})
+  }, [getToken])
+
+  // Fetch credit usage
+  useEffect(() => {
+    const token = getToken()
+    if (!token) return
+
+    const loadCredits = async () => {
+      try {
+        let res = await fetch('/api/usage/credits', { headers: { Authorization: `Bearer ${token}` } })
+        if (res.ok) {
+          const data = await res.json()
+          setCreditUsage(data)
+          return
+        }
+        res = await fetch('/api/usage/tokens', { headers: { Authorization: `Bearer ${token}` } })
+        if (res.ok) {
+          const data = await res.json()
+          setCreditUsage(data)
+        }
+      } catch {}
+    }
+    loadCredits()
+  }, [getToken])
+
+  // Fetch provider rates
+  useEffect(() => {
+    const token = getToken()
+    if (!token) return
+    fetch('/api/usage/provider-rates', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.providers) setProviderRates(data.providers)
+      })
+      .catch(() => {})
+  }, [getToken])
+
+  // Derive connection status
+  const currentProviderInfo = availableProviders.find(p => p.id === provider) || PROVIDERS[0]
+  const hasKeyForProvider = provider === 'local-ollama' ? localOllamaDetected : (apiKeys.some(k => k.provider === provider) || (provider === 'ollama' && !!apiKey))
+
+  const getInputPer1M = (providerId: string): number => {
+    const rate = providerRates.find(r => r.provider === providerId && r.isDefault)
+    if (rate) return rate.inputPer1M
+    const defaults: Record<string, number> = { ollama: 0.084, 'local-ollama': 0, anthropic: 3.15, openai: 2.63 }
+    return defaults[providerId] ?? 1
+  }
+
+  const hasByKey = (providerId: string): boolean => {
+    return apiKeys.some(k => k.provider === providerId) || (providerId === 'ollama' && !!apiKey)
+  }
+
+  const usagePercent = creditUsage
+    ? (creditUsage.monthlyCredits === -1 ? 0 : (creditUsage.creditsUsed / creditUsage.monthlyCredits) * 100)
+    : 0
+  const connectionStatus = provider === 'local-ollama'
+    ? (localOllamaDetected
+      ? { label: 'Local · Free', color: 'bg-green-500', textColor: 'text-green-400' }
+      : { label: 'Ollama not detected', color: 'bg-red-500', textColor: 'text-red-400' })
+    : hasKeyForProvider
+      ? { label: 'Connected', color: 'bg-green-500', textColor: 'text-green-400' }
+      : creditUsage && creditUsage.creditsRemaining > 0
+        ? { label: 'Using included credits', color: 'bg-yellow-500', textColor: 'text-yellow-400' }
+        : { label: 'No credits', color: 'bg-red-500', textColor: 'text-red-400' }
+
+  const handleProviderChange = (id: ProviderId) => {
+    setProvider(id)
+    localStorage.setItem('lodestone_provider', id)
+    if (id === 'local-ollama') {
+      const model = selectedLocalModel || localStorage.getItem('lodestone_local_model') || ''
+      localStorage.setItem('lodestone_model', model)
+      localStorage.setItem('lodestone_local_provider', 'true')
+    } else {
+      localStorage.setItem('lodestone_model', modelMap[id])
+      localStorage.removeItem('lodestone_local_provider')
+    }
+    setProviderDropdownOpen(false)
+  }
+
+  const handleLocalModelChange = (modelName: string) => {
+    setSelectedLocalModel(modelName)
+    localStorage.setItem('lodestone_local_model', modelName)
+    if (provider === 'local-ollama') {
+      localStorage.setItem('lodestone_model', modelName)
+    }
+    setModelDropdownOpen(false)
+  }
+
+  const handleProvider2Change = (id: ProviderId) => {
+    setProvider2(id)
+    localStorage.setItem('lodestone_provider2', id)
+    setProvider2DropdownOpen(false)
+  }
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files?.length) return
+    setUploading(true)
+    const token = getToken()
+    if (!token) return
+
+    for (const file of Array.from(files)) {
+      const formData = new FormData()
+      formData.append('file', file)
+      try {
+        const res = await fetch('/api/chat/upload', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        })
+        if (res.ok) {
+          const data = await res.json()
+          setAttachedFiles(prev => [...prev, { id: data.id, name: data.name, size: data.size, mimeType: data.mimeType, preview: data.mimeType?.startsWith('image/') ? URL.createObjectURL(file) : undefined }])
+        } else {
+          const err = await res.json().catch(() => ({}))
+          window.dispatchEvent(new CustomEvent('app-toast', { detail: { message: `Upload failed: ${err.error || 'Unknown error'}`, type: 'error' } }))
+        }
+      } catch {
+        window.dispatchEvent(new CustomEvent('app-toast', { detail: { message: 'Upload failed', type: 'error' } }))
+      }
+    }
+    setUploading(false)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  // Scroll to bottom
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+  }, [messages, loading])
+
+  // Load agent identity
+  useEffect(() => {
+    const token = getToken()
+    if (!token) return
+    fetch('/api/identity', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.name) setAgentIdentity({ name: data.name, avatar_emoji: data.avatar_emoji || '🪨' })
+      })
+      .catch(() => {})
+  }, [getToken])
+
+  // Load messages for a conversation
+  const loadConversation = useCallback(async (id: string) => {
+    const token = getToken()
+    if (!token) return
+    try {
+      const res = await fetch(`/api/chat/conversations/${id}/messages`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setMessages(data.messages.map((m: any) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          timestamp: new Date(m.created_at).getTime()
+        })))
+        setConversationId(id)
+      }
+    } catch {
+      // Silently fail
+    }
+  }, [getToken])
+
+  const startNewChat = () => {
+    setMessages([])
+    setConversationId(null)
+    setInput('')
+    setError(null)
+    setShadowResponse(null)
+    setShadowLoading(false)
+    setShadowExpanded(false)
+    if (onConversationChange) onConversationChange(null)
+    navigate('/chat', { replace: true })
+  }
+
+  const handleSuggestionClick = (prompt: string) => {
+    setInput(prompt)
+    inputRef.current?.focus()
+  }
+
+  const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
+    window.dispatchEvent(new CustomEvent('app-toast', { detail: { message, type } }))
+  }, [])
+
+  const sendMessage = async () => {
+    if (!input.trim() || loading) return
+
+    // /recall command
+    if (input.trim().startsWith('/recall')) {
+      const query = input.trim().replace(/^\/recall\s*/, '')
+      setShowRecall(true)
+      setRecallQuery(query)
+      await handleRecall(query)
+      setInput('')
+      return
+    }
+
+    // /task command - creates a commitment
+    if (input.trim().startsWith('/task')) {
+      const taskContent = input.trim().replace(/^\/task\s*/, '')
+      if (taskContent) {
+        const token = getToken()
+        try {
+          const res = await fetch('/api/chat/commitments', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ content: taskContent })
+          })
+          if (res.ok) {
+            window.dispatchEvent(new CustomEvent('app-toast', { detail: { message: `✅ Task created: "${taskContent}"`, type: 'success' } }))
+            setMessages(prev => [...prev,
+              { id: crypto.randomUUID(), role: 'assistant' as const, content: `I've noted that task: "${taskContent}". I'll remind you about it.`, timestamp: Date.now() }
+            ])
+            window.dispatchEvent(new CustomEvent('conversations-changed'))
+          }
+        } catch {}
+        setInput('')
+        return
+      } else {
+        setInput('/task ')
+        inputRef.current?.focus()
+        return
+      }
+    }
+
+    // /template command - start a template session
+    if (input.trim().startsWith('/') && !input.trim().startsWith('/recall') && !input.trim().startsWith('/task')) {
+      const templateId = input.trim().substring(1).split(' ')[0]
+      const template = templates.find(t => t.id === templateId)
+      if (template) {
+        const userContent = input.trim().substring(templateId.length + 2).trim() || `Let's start a ${template.name} session.`
+        if (!apiKey && !getToken()) {
+          setError('Add your API key in Settings to start chatting.')
+          return
+        }
+        const userMsg: Message = { id: crypto.randomUUID(), role: 'user', content: userContent, timestamp: Date.now(), attachments: attachedFiles.length > 0 ? [...attachedFiles] : undefined }
+        setMessages(prev => [...prev, userMsg])
+        setInput('')
+        setLoading(true)
+        setError(null)
+
+        const controller = new AbortController()
+        abortRef.current = controller
+
+        try {
+          const token = getToken()
+          const currentModel = localStorage.getItem('lodestone_model') || modelMap[provider]
+          const currentProvider = localStorage.getItem('lodestone_provider') || provider
+
+          const response = await fetch('/api/chat/stream', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+              'x-api-key': apiKey || '',
+            },
+            body: JSON.stringify({ model: currentModel, content: userContent, conversationId, provider: currentProvider, template: templateId, systemPrompt: systemPrompt || undefined }),
+            signal: controller.signal,
+          })
+
+          if (!response.ok) {
+            const data = await response.json().catch(() => ({}))
+            if (response.status === 401) {
+              setError('Invalid API key. Check your key in Settings.')
+            } else if (response.status === 429) {
+              setError('Rate limited. Please wait a moment and try again.')
+            } else {
+              setError(`Error: ${response.status}`)
+            }
+            setLoading(false)
+            return
+          }
+
+          // Read SSE stream
+          const reader = response.body!.getReader()
+          const decoder = new TextDecoder()
+          let buffer = ''
+          let assistantMsgId = crypto.randomUUID()
+          let assistantContent = ''
+          let activeTools: Array<{name: string, args: any}> = []
+          let toolResults: Array<{name: string, content: string}> = []
+          let streamConvId: string | null = null
+
+          setMessages(prev => [...prev, { id: assistantMsgId, role: 'assistant', content: '', timestamp: Date.now() }])
+
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            buffer += decoder.decode(value, { stream: true })
+            const lines = buffer.split('\n')
+            buffer = lines.pop() || ''
+            for (const line of lines) {
+              if (!line.startsWith('data: ')) continue
+              try {
+                const data = JSON.parse(line.slice(6))
+                if (data.type === 'start') {
+                  streamConvId = data.conversationId
+                } else if (data.type === 'tool_start') {
+                  activeTools.push({ name: data.tool, args: data.args })
+                  const toolEmoji: Record<string, string> = { web_search: '\u{1F50D}', web_fetch: '\u{1F310}', calculator: '\u{1F9EE}', execute_code: '\u{1F40D}', save_memory: '\u{1F4BE}', search_memory: '\u{1F50D}', create_commitment: '\u{1F4CB}', set_reminder: '\u23F0', list_reminders: '\u{1F4C5}', weather: '\u{1F324}\uFE0F', create_note: '\u{1F4DD}', analyze_file: '\u{1F4C4}' }
+                  const emoji = toolEmoji[data.tool] || '\u{1F527}'
+                  const toolNotice = activeTools.map(t => `${emoji} _Using ${t.name}..._`).join('\n')
+                  setMessages(prev => prev.map(m => m.id === assistantMsgId ? { ...m, content: assistantContent + (assistantContent ? '\n\n' : '') + toolNotice } : m))
+                } else if (data.type === 'tool_result') {
+                  toolResults.push({ name: data.tool, content: data.content })
+                  let summary = ''
+                  try {
+                    const parsed = JSON.parse(data.content)
+                    if (parsed.results) summary = `${parsed.results.length} results`
+                    else if (parsed.result !== undefined) summary = String(parsed.result)
+                    else if (parsed.temperature) summary = `${parsed.temperature}, ${parsed.conditions}`
+                    else if (parsed.saved || parsed.created) summary = 'done'
+                    else if (parsed.memories) summary = `${parsed.memories.length} memories found`
+                    else if (parsed.reminders) summary = `${parsed.reminders.length} reminders`
+                    else if (parsed.output) summary = parsed.success ? 'executed' : 'error'
+                    else if (parsed.title) summary = parsed.title.substring(0, 60)
+                    else if (parsed.location) summary = parsed.location
+                    else if (parsed.error) summary = `\u26A0\uFE0F ${parsed.error}`
+                  } catch { summary = 'done' }
+                  const resultNotice = `\u2705 ${data.tool}${summary ? ': ' + summary : ''}`
+                  assistantContent += (assistantContent ? '\n' : '') + resultNotice
+                  setMessages(prev => prev.map(m => m.id === assistantMsgId ? { ...m, content: assistantContent } : m))
+                } else if (data.type === 'token') {
+                  assistantContent += data.content
+                  setMessages(prev => prev.map(m => m.id === assistantMsgId ? { ...m, content: assistantContent } : m))
+                } else if (data.type === 'done') {
+                  streamConvId = data.conversationId || streamConvId
+                } else if (data.type === 'error') {
+                  setError(data.error || 'Stream error')
+                }
+              } catch {}
+            }
+          }
+
+          if (streamConvId) {
+            setConversationId(streamConvId)
+            navigate(`/chat/${streamConvId}`, { replace: true })
+            window.dispatchEvent(new CustomEvent('conversations-changed'))
+            if (onConversationChange) onConversationChange(streamConvId)
+          }
+          setAttachedFiles([])
+
+          // Shadow persona: fire shadow review if enabled (streaming path)
+          if (shadowMode && assistantContent) {
+            const shadowProvider: ProviderId = provider === 'ollama' ? 'anthropic' : provider === 'anthropic' ? 'openai' : 'ollama'
+            const shadowModel = modelMap[shadowProvider]
+            const shadowToken = getToken()
+            setShadowLoading(true)
+            setShadowResponse(null)
+            setShadowExpanded(false)
+            fetch('/api/chat/message', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${shadowToken}`,
+              },
+              body: JSON.stringify({
+                model: shadowModel,
+                content: `Review this response for accuracy and completeness. Point out any errors, missing information, or alternative perspectives. Be concise.\n\nThe response to review:\n${assistantContent}`,
+                provider: shadowProvider,
+              }),
+            })
+              .then(r => r.ok ? r.json() : Promise.reject(new Error('Shadow request failed')))
+              .then(data => {
+                if (data.content) setShadowResponse(data.content)
+              })
+              .catch(() => setShadowResponse(null))
+              .finally(() => setShadowLoading(false))
+          }
+        } catch (err: any) {
+          if (err.name !== 'AbortError') {
+            setError('Connection error. Check your internet and API key.')
+          }
+        } finally {
+          setLoading(false)
+          abortRef.current = null
+        }
+        return
+      }
+    }
+
+    if (!apiKey && !getToken()) {
+      setError('Add your API key in Settings to start chatting.')
+      return
+    }
+
+    // Compare mode: send to two providers simultaneously
+    if (compareMode) {
+      const userMsg: Message = { id: crypto.randomUUID(), role: 'user', content: input.trim(), timestamp: Date.now() }
+      setMessages(prev => [...prev, userMsg])
+      setInput('')
+      setCompareLoading(true)
+      setCompareLeftResponse('')
+      setCompareRightResponse('')
+      setError(null)
+
+      if (inputRef.current) inputRef.current.style.height = 'auto'
+
+      const token = getToken()
+      const leftProvider = provider
+      const rightProvider = provider2
+      const leftModel = modelMap[leftProvider] || localStorage.getItem('lodestone_model') || 'glm-5.1:cloud'
+      const rightModel = modelMap[rightProvider] || 'claude-sonnet-4-20250514'
+
+      const makeRequest = async (prov: ProviderId, mod: string) => {
+        try {
+          const res = await fetch('/api/chat/message', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+              'x-api-key': apiKey || '',
+            },
+            body: JSON.stringify({ model: mod, content: userMsg.content, conversationId: undefined, provider: prov }),
+          })
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}))
+            return `Error: ${errData.error || res.status}`
+          }
+          const data = await res.json()
+          return data.content || 'No response'
+        } catch (err: any) {
+          return `Error: ${err.message || 'Connection failed'}`
+        }
+      }
+
+      const [leftResult, rightResult] = await Promise.all([
+        makeRequest(leftProvider, leftModel),
+        makeRequest(rightProvider, rightModel),
+      ])
+
+      setCompareLeftResponse(leftResult)
+      setCompareRightResponse(rightResult)
+
+      // Also add both responses to the message history
+      setMessages(prev => [
+        ...prev,
+        { id: crypto.randomUUID(), role: 'assistant' as const, content: `**${PROVIDERS.find(p => p.id === leftProvider)?.name || leftProvider}:**\n\n${leftResult}`, timestamp: Date.now() },
+        { id: crypto.randomUUID(), role: 'assistant' as const, content: `**${PROVIDERS.find(p => p.id === rightProvider)?.name || rightProvider}:**\n\n${rightResult}`, timestamp: Date.now() + 1 },
+      ])
+
+      setCompareLoading(false)
+      return
+    }
+
+    const userMsg: Message = { id: crypto.randomUUID(), role: 'user', content: input.trim(), timestamp: Date.now() }
+    setMessages(prev => [...prev, userMsg])
+    setInput('')
+    setLoading(true)
+    setError(null)
+    setShadowResponse(null)
+    setShadowExpanded(false)
+
+    if (inputRef.current) inputRef.current.style.height = 'auto'
+
+    const controller = new AbortController()
+    abortRef.current = controller
+
+    try {
+      const token = getToken()
+      const currentModel = localStorage.getItem('lodestone_model') || modelMap[provider]
+      const currentProvider = localStorage.getItem('lodestone_provider') || provider
+
+      const response = await fetch('/api/chat/message', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          'x-api-key': apiKey || '',
+        },
+        body: JSON.stringify({ model: currentModel, content: userMsg.content, conversationId, provider: currentProvider, fileIds: attachedFiles.map(f => f.id) }),
+        signal: controller.signal,
+      })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        if (response.status === 401) {
+          setError('Invalid API key. Check your key in Settings.')
+        } else if (response.status === 429) {
+          setError('Rate limited. Please wait a moment and try again.')
+        } else if (data?.code === 'CREDITS_EXCEEDED' || data?.code === 'QUOTA_EXCEEDED') {
+          setError("You've reached your monthly limit. Add more credits or bring your own API key in Settings.")
+        } else {
+          setError(`Error: ${response.status}`)
+        }
+        setLoading(false)
+        return
+      }
+
+      const data = await response.json()
+      const reply = data.content || 'No response'
+
+      if (data.conversationId) {
+        setConversationId(data.conversationId)
+        navigate(`/chat/${data.conversationId}`, { replace: true })
+        window.dispatchEvent(new CustomEvent('conversations-changed'))
+        if (onConversationChange) onConversationChange(data.conversationId)
+      }
+
+      setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'assistant', content: reply, timestamp: Date.now() }])
+
+      // Shadow persona: fire shadow review if enabled
+      if (shadowMode) {
+        const shadowProvider: ProviderId = provider === 'ollama' ? 'anthropic' : provider === 'anthropic' ? 'openai' : 'ollama'
+        const shadowModel = modelMap[shadowProvider]
+        const shadowToken = getToken()
+        setShadowLoading(true)
+        setShadowResponse(null)
+        setShadowExpanded(false)
+        fetch('/api/chat/message', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${shadowToken}`,
+          },
+          body: JSON.stringify({
+            model: shadowModel,
+            content: `Review this response for accuracy and completeness. Point out any errors, missing information, or alternative perspectives. Be concise.\n\nThe response to review:\n${reply}`,
+            provider: shadowProvider,
+          }),
+        })
+          .then(r => r.ok ? r.json() : Promise.reject(new Error('Shadow request failed')))
+          .then(data => {
+            if (data.content) setShadowResponse(data.content)
+          })
+          .catch(() => setShadowResponse(null))
+          .finally(() => setShadowLoading(false))
+      }
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        setError('Connection error. Check your internet and API key.')
+      }
+    } finally {
+      setLoading(false)
+      abortRef.current = null
+    }
+  }
+
+
+  // Share conversation
+  const handleShare = async () => {
+    if (!conversationId || sharing) return
+    setSharing(true)
+    const token = getToken()
+    try {
+      const res = await fetch('/api/chat/share', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ conversationId })
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setShareUrl(data.shareUrl)
+        await navigator.clipboard.writeText(data.shareUrl)
+        window.dispatchEvent(new CustomEvent('app-toast', { detail: { message: 'Share link copied to clipboard!', type: 'success' } }))
+      }
+    } catch {} finally {
+      setSharing(false)
+    }
+  }
+
+  const formatTime = (ts: number) => {
+    return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  }
+
+  return (
+    <div className="flex h-full overflow-hidden relative">
+      {/* Recall overlay */}
+      {showRecall && (
+        <div className="absolute inset-0 z-40 bg-[var(--bg)] p-4 overflow-y-auto" style={{ background: 'var(--bg)' }}>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-[var(--text)]">🧠 Recall</h3>
+            <button onClick={() => { setShowRecall(false); setRecallResults(null) }} className="p-1.5 rounded-lg hover:bg-[var(--surface-2)] text-[var(--text-muted)]">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <input
+            type="text"
+            value={recallQuery}
+            onChange={e => { setRecallQuery(e.target.value); if (e.target.value.trim()) handleRecall(e.target.value.trim()) }}
+            placeholder="Search memories..."
+            className="w-full px-3 py-2 rounded-lg border border-[var(--border)] text-sm mb-4"
+            style={{ background: 'var(--surface-2)', color: 'var(--text)' }}
+            autoFocus
+          />
+          {recallLoading && <p className="text-sm text-[var(--text-muted)]">Searching...</p>}
+          {recallResults && (
+            <>
+              {recallResults.memories?.length > 0 && (
+                <div className="mb-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)] mb-2">Memories</p>
+                  {recallResults.memories.map((m: any) => (
+                    <div key={m.id} className="py-2 px-3 rounded-lg hover:bg-[var(--surface-2)] cursor-pointer text-sm text-[var(--text)] mb-1"
+                      onClick={() => { setInput(`Tell me about: ${m.content}`); setShowRecall(false); inputRef.current?.focus() }}
+                    >
+                      <span className="text-xs text-[var(--text-dim)] mr-2">{m.category}</span>
+                      {m.content}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {recallResults.commitments?.length > 0 && (
+                <div className="mb-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)] mb-2">Commitments</p>
+                  {recallResults.commitments.map((c: any) => (
+                    <div key={c.id} className="py-2 px-3 rounded-lg hover:bg-[var(--surface-2)] text-sm text-[var(--text)] mb-1">
+                      <span className="text-xs text-amber-400 mr-2">pending</span>
+                      {c.content}
+                      {c.due_date && <span className="text-xs text-[var(--text-dim)] ml-2">due {new Date(c.due_date).toLocaleDateString()}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {recallResults.recentConversations?.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)] mb-2">Recent Conversations</p>
+                  {recallResults.recentConversations.map((c: any) => (
+                    <div key={c.id} className="py-2 px-3 rounded-lg hover:bg-[var(--surface-2)] cursor-pointer text-sm text-[var(--text)] mb-1"
+                      onClick={() => { navigate(`/chat/${c.id}`); setShowRecall(false) }}
+                    >
+                      💬 {c.title || 'New chat'}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {(!recallResults.memories?.length && !recallResults.commitments?.length && !recallResults.recentConversations?.length) && (
+                <p className="text-sm text-[var(--text-muted)]">No results found</p>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Main Chat Area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Header — desktop */}
+        <div className="hidden md:flex items-center justify-between px-4 py-2.5 border-b" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={startNewChat}
+              className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface-2)] transition-colors"
+              title="New Chat"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+            </button>
+            <span className="text-lg">{agentIdentity.avatar_emoji}</span>
+            <span className="font-medium text-[var(--text)]">{agentIdentity.name}</span>
+            {conversationId && (
+              <span className="text-xs text-[var(--text-dim)] ml-1">· Chat</span>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            {/* System Prompt indicator */}
+            <button
+              onClick={() => setShowSystemPromptPicker(!showSystemPromptPicker)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border)] text-sm text-[var(--text)] hover:border-[var(--brand)] hover:bg-[var(--surface-2)] transition-colors"
+              title={systemPrompt ? `Custom prompt: ${systemPrompt.slice(0, 50)}...` : 'Set system prompt'}
+            >
+              <span>🎭</span>
+              <span className="hidden md:inline">{systemPrompt ? 'Custom' : 'Prompt'}</span>
+            </button>
+
+            {/* Persona selector */}
+            <PersonaSelector
+              compact
+              onPersonaChange={(persona) => {
+                if (persona && persona.system_prompt) {
+                  setSystemPrompt(persona.system_prompt)
+                } else {
+                  setSystemPrompt("")
+                }
+              }}
+            />
+
+            {/* Provider dropdown */}
+            <div className="relative" ref={providerDropdownRef}>
+              <button
+                onClick={() => setProviderDropdownOpen(!providerDropdownOpen)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border)] text-sm text-[var(--text)] hover:border-[var(--brand)] hover:bg-[var(--surface-2)] transition-colors"
+              >
+                <span>{currentProviderInfo.icon}</span>
+                <span>{currentProviderInfo.name}</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform ${providerDropdownOpen ? 'rotate-180' : ''}`}>
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </button>
+              {providerDropdownOpen && (
+                <div className="absolute right-0 top-full mt-1 w-72 bg-[var(--surface)] border border-[var(--border)] rounded-lg shadow-xl z-50 py-1 animate-fade-in">
+                  {availableProviders.map(p => {
+                    const byok = hasByKey(p.id)
+                    const inputPer1M = getInputPer1M(p.id)
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={() => handleProviderChange(p.id as ProviderId)}
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-[var(--surface-2)] transition-colors ${
+                          provider === p.id ? 'text-brand-400' : 'text-[var(--text)]'
+                        }`}
+                      >
+                        <span className="text-base">{p.icon}</span>
+                        <span className="flex-1">{p.name}</span>
+                        <span className="text-xs text-[var(--text-dim)]">
+                          {byok ? 'Your key · No charge' : formatPricingShort(inputPer1M)}
+                        </span>
+                        {provider === p.id && (
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-brand-400">
+                            <polyline points="20 6 9 17 4 12"/>
+                          </svg>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+            {/* Compare mode toggle */}
+            <button
+              onClick={() => {
+                setCompareMode(prev => !prev)
+                if (compareMode) {
+                  setCompareLeftResponse('')
+                  setCompareRightResponse('')
+                }
+              }}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-sm transition-colors ${
+                compareMode
+                  ? 'border-[var(--brand)] bg-brand-500/10 text-[var(--brand)]'
+                  : 'border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text)] hover:border-[var(--brand)] hover:bg-[var(--surface-2)]'
+              }`}
+              title="Compare two models side by side"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="7" height="18" rx="1" />
+                <rect x="14" y="3" width="7" height="18" rx="1" />
+              </svg>
+              <span className="hidden lg:inline">Compare</span>
+            </button>
+            {/* Compare mode — second provider dropdown */}
+            {compareMode && (
+              <div className="relative" ref={provider2DropdownRef}>
+                <button
+                  onClick={() => setProvider2DropdownOpen(!provider2DropdownOpen)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border)] text-sm text-[var(--text)] hover:border-[var(--brand)] hover:bg-[var(--surface-2)] transition-colors"
+                >
+                  <span>{PROVIDERS.find(p => p.id === provider2)?.icon || '🟣'}</span>
+                  <span>{PROVIDERS.find(p => p.id === provider2)?.name || provider2}</span>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform ${provider2DropdownOpen ? 'rotate-180' : ''}`}>
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
+                </button>
+                {provider2DropdownOpen && (
+                  <div className="absolute right-0 top-full mt-1 w-72 bg-[var(--surface)] border border-[var(--border)] rounded-lg shadow-xl z-50 py-1 animate-fade-in">
+                    {availableProviders.map(p => {
+                      const byok = hasByKey(p.id)
+                      const inputPer1M = getInputPer1M(p.id)
+                      return (
+                        <button
+                          key={p.id}
+                          onClick={() => handleProvider2Change(p.id as ProviderId)}
+                          className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-[var(--surface-2)] transition-colors ${
+                            provider2 === p.id ? 'text-brand-400' : 'text-[var(--text)]'
+                          }`}
+                        >
+                          <span className="text-base">{p.icon}</span>
+                          <span className="flex-1">{p.name}</span>
+                          <span className="text-xs text-[var(--text-dim)]">
+                            {byok ? 'Your key · No charge' : formatPricingShort(inputPer1M)}
+                          </span>
+                          {provider2 === p.id && (
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-brand-400">
+                              <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+            {/* Local Ollama model selector */}
+            {provider === 'local-ollama' && localModels.length > 0 && (
+              <div className="relative" ref={modelDropdownRef}>
+                <button
+                  onClick={() => setModelDropdownOpen(!modelDropdownOpen)}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[var(--border)] text-xs text-[var(--text)] hover:border-[var(--brand)] hover:bg-[var(--surface-2)] transition-colors max-w-[160px]"
+                >
+                  <span className="truncate">{selectedLocalModel}</span>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform flex-shrink-0 ${modelDropdownOpen ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                {modelDropdownOpen && (
+                  <div className="absolute right-0 top-full mt-1 w-56 bg-[var(--surface)] border border-[var(--border)] rounded-lg shadow-xl z-50 py-1 animate-fade-in max-h-64 overflow-y-auto">
+                    {localModels.map(m => (
+                      <button
+                        key={m.name}
+                        onClick={() => handleLocalModelChange(m.name)}
+                        className={`w-full flex items-center justify-between px-3 py-2 text-sm text-left hover:bg-[var(--surface-2)] transition-colors ${
+                          selectedLocalModel === m.name ? 'text-brand-400' : 'text-[var(--text)]'
+                        }`}
+                      >
+                        <span className="truncate">{m.name}</span>
+                        <span className="text-xs text-[var(--text-dim)] ml-2 flex-shrink-0">{m.size}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {/* System Prompt Picker */}
+            {showSystemPromptPicker && (
+              <div className="fixed inset-0 z-50" onClick={() => setShowSystemPromptPicker(false)}>
+                <div className="absolute inset-0 bg-black/30" />
+                <div className="relative mx-auto mt-16 w-full max-w-md bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+                  <div className="px-4 py-3 border-b border-[var(--border)]">
+                    <h3 className="text-sm font-semibold text-[var(--text)]">System Prompt</h3>
+                    <p className="text-xs text-[var(--text-dim)] mt-0.5">Set how Lodestone behaves in this conversation</p>
+                  </div>
+                  <div className="max-h-72 overflow-y-auto p-2">
+                    {systemPrompts.map((p: any) => (
+                      <button
+                        key={p.id}
+                        onClick={() => { setSystemPrompt(p.prompt === systemPrompt ? '' : p.prompt); setShowSystemPromptPicker(false) }}
+                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-left hover:bg-[var(--surface-2)] transition-colors ${p.prompt === systemPrompt ? 'bg-[var(--surface-2)] text-brand-400' : 'text-[var(--text)]'}`}
+                      >
+                        <span className="text-base">{p.icon}</span>
+                        <div className="flex-1">
+                          <div className="font-medium">{p.name}</div>
+                          <div className="text-xs text-[var(--text-dim)]">{p.description}</div>
+                        </div>
+                        {p.prompt === systemPrompt && (
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-brand-400"><polyline points="20 6 9 17 4 12"/></svg>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="px-4 py-3 border-t border-[var(--border)]">
+                    <textarea
+                      value={systemPrompt}
+                      onChange={e => setSystemPrompt(e.target.value)}
+                      placeholder="Or write a custom system prompt..."
+                      className="w-full px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-sm text-[var(--text)] placeholder:text-[var(--text-dim)] resize-none focus:outline-none focus:border-[var(--brand)]"
+                      rows={2}
+                    />
+                    {systemPrompt && (
+                      <button onClick={() => { setSystemPrompt(''); setShowSystemPromptPicker(false) }} className="mt-1 text-xs text-red-400 hover:text-red-300">Clear system prompt</button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Share button */}
+            {conversationId && messages.length > 0 && (
+              <button
+                onClick={handleShare}
+                disabled={sharing}
+                className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface-2)] transition-colors"
+                title="Share conversation"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                </svg>
+              </button>
+            )}
+            {/* Shadow persona toggle */}
+            <button
+              onClick={() => { setShadowMode(!shadowMode); if (shadowMode) { setShadowResponse(null); setShadowLoading(false) } }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm transition-colors ${
+                shadowMode
+                  ? 'border-brand-500 bg-brand-500/10 text-brand-400'
+                  : 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--brand)] hover:bg-[var(--surface-2)]'
+              }`}
+              title={shadowMode ? 'Shadow review active — click to disable' : 'Enable shadow review for fact-checking'}
+            >
+              🔍 <span className="hidden md:inline">Shadow</span>
+            </button>
+
+            {/* Connection status */}
+            <span className="flex items-center gap-1.5 text-xs text-[var(--text-dim)]">
+              <span className={`w-2 h-2 rounded-full ${connectionStatus.color}`} />
+              <span className={connectionStatus.textColor}>{connectionStatus.label}</span>
+            </span>
+          </div>
+        </div>
+
+        {/* Mobile header — chat */}
+        <div className="flex md:hidden items-center gap-2 px-3 py-2 border-b" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+          <span className="text-lg">{agentIdentity.avatar_emoji}</span>
+          <span className="font-medium text-[var(--text)] text-sm">{agentIdentity.name}</span>
+          <div className="flex-1" />
+          <div className="relative" ref={providerDropdownRef}>
+            <button
+              onClick={() => setProviderDropdownOpen(!providerDropdownOpen)}
+              className="flex items-center gap-1 px-2 py-1 rounded-lg border border-[var(--border)] text-xs text-[var(--text-muted)] hover:text-[var(--text)] hover:border-[var(--brand)] transition-colors"
+            >
+              <span>{currentProviderInfo.icon}</span>
+              <span>{currentProviderInfo.name}</span>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform ${providerDropdownOpen ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            {providerDropdownOpen && (
+              <div className="absolute right-0 top-full mt-1 w-56 bg-[var(--surface)] border border-[var(--border)] rounded-lg shadow-xl z-50 py-1">
+                {availableProviders.map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => handleProviderChange(p.id as ProviderId)}
+                    className={`w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-[var(--surface-2)] transition-colors ${provider === p.id ? 'text-brand-400' : 'text-[var(--text)]'}`}
+                  >
+                    <span>{p.icon}</span>
+                    <span>{p.name}</span>
+                    {provider === p.id && <span className="ml-auto">✓</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          {/* Shadow toggle (mobile) */}
+          <button
+            onClick={() => { setShadowMode(!shadowMode); if (shadowMode) { setShadowResponse(null); setShadowLoading(false) } }}
+            className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-xs transition-colors ${
+              shadowMode
+                ? 'border-brand-500 bg-brand-500/10 text-brand-400'
+                : 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--brand)]'
+            }`}
+          >
+            🔍
+          </button>
+          {/* Compare mode toggle (mobile) */}
+          <button
+            onClick={() => {
+              setCompareMode(prev => !prev)
+              if (compareMode) {
+                setCompareLeftResponse('')
+                setCompareRightResponse('')
+              }
+            }}
+            className={`flex items-center px-2 py-1 rounded-lg border text-xs transition-colors ${
+              compareMode
+                ? 'border-[var(--brand)] bg-brand-500/10 text-[var(--brand)]'
+                : 'border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text)] hover:border-[var(--brand)]'
+            }`}
+            title="Compare"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="7" height="18" rx="1" />
+              <rect x="14" y="3" width="7" height="18" rx="1" />
+            </svg>
+          </button>
+          {compareMode && (
+            <div className="relative" ref={provider2DropdownRef}>
+              <button
+                onClick={() => setProvider2DropdownOpen(!provider2DropdownOpen)}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg border border-[var(--border)] text-xs text-[var(--text-muted)] hover:text-[var(--text)] hover:border-[var(--brand)] transition-colors"
+              >
+                <span>{PROVIDERS.find(p => p.id === provider2)?.icon || '🟣'}</span>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform ${provider2DropdownOpen ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              {provider2DropdownOpen && (
+                <div className="absolute right-0 top-full mt-1 w-56 bg-[var(--surface)] border border-[var(--border)] rounded-lg shadow-xl z-50 py-1">
+                  {availableProviders.map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => handleProvider2Change(p.id as ProviderId)}
+                      className={`w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-[var(--surface-2)] transition-colors ${provider2 === p.id ? 'text-brand-400' : 'text-[var(--text)]'}`}
+                    >
+                      <span>{p.icon}</span>
+                      <span>{p.name}</span>
+                      {provider2 === p.id && <span className="ml-auto">✓</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Messages */}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 relative" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop} onPaste={handlePaste} style={{ background: 'var(--bg)' }}>
+          {dragOver && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-[var(--bg)]/80 backdrop-blur-sm rounded-lg border-2 border-dashed border-brand-500/60 pointer-events-none">
+              <div className="text-center">
+                <div className="text-4xl mb-2">📎</div>
+                <div className="text-sm font-medium text-brand-400">Drop files here</div>
+                <div className="text-xs text-[var(--text-dim)] mt-1">PDF, text, images up to 10MB</div>
+              </div>
+            </div>
+          )}
+          {messages.length === 0 && !loading && (
+            <div className="flex flex-col items-center justify-center h-full text-center py-12 px-4">
+              <div className="text-5xl mb-4">{agentIdentity.avatar_emoji}</div>
+              <h2 className="text-xl font-semibold text-[var(--text)] mb-1">
+                {greeting ? `${greeting.greeting}` : 'Welcome'}
+              </h2>
+              <p className="text-sm text-[var(--text-muted)] mb-6 max-w-md">
+                {greeting?.context?.overdue?.length > 0
+                  ? `You have ${greeting?.context?.overdue?.length} overdue item${greeting?.context?.overdue?.length > 1 ? 's' : ''}. Let's get caught up.`
+                  : greeting?.context?.totalMemories > 0
+                    ? `I remember ${greeting?.context?.totalMemories} things about you. What can I help with?`
+                    : 'Your AI assistant is ready. Type a message or pick a starting point below.'
+                }
+              </p>
+
+              {/* Suggestion cards */}
+              <div className="grid grid-cols-2 gap-2 max-w-md w-full">
+                {(greeting?.suggestions || SUGGESTIONS).slice(0, 4).map((s, i) => (
+                  <button
+                    key={i}
+                    onClick={() => { setInput(s.prompt); inputRef.current?.focus() }}
+                    className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-[var(--border)] text-left hover:border-[var(--brand)] hover:bg-brand-500/5 transition-all text-sm"
+                    style={{ background: 'var(--surface-2)' }}
+                  >
+                    <span className="text-base">{s.icon}</span>
+                    <span className="text-[var(--text)]">{s.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Overdue commitments */}
+              {greeting?.context?.overdue?.length > 0 && (
+                <div className="mt-4 max-w-md w-full">
+                  <p className="text-xs text-amber-400 mb-2">⚠️ Overdue commitments</p>
+                  {greeting?.context?.overdue?.slice(0, 3).map((c: any, i: number) => (
+                    <div key={i} className="text-xs text-[var(--text-muted)] text-left py-1">
+                      • {c.content} {c.dueDate && <span className="text-amber-400">(was due {new Date(c.dueDate).toLocaleDateString()})</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Template picker */}
+              {templates.length > 0 && (
+                <div className="mt-4 max-w-md w-full">
+                  <button
+                    onClick={() => setShowTemplates(!showTemplates)}
+                    className="text-xs text-[var(--text-dim)] hover:text-[var(--text)] transition-colors flex items-center gap-1"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg>
+                    Conversation templates
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform ${showTemplates ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9"/></svg>
+                  </button>
+                  {showTemplates && (
+                    <div className="mt-2 space-y-1.5">
+                      {templates.map(t => (
+                        <button
+                          key={t.id}
+                          onClick={() => {
+                            setInput(`/${t.id} `)
+                            setShowTemplates(false)
+                            inputRef.current?.focus()
+                          }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-sm hover:bg-[var(--surface-2)] transition-colors border border-[var(--border)]"
+                        >
+                          <span className="text-lg">{t.icon}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-[var(--text)]">{t.name}</p>
+                            <p className="text-xs text-[var(--text-dim)]">{t.description}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {messages.map(msg => (
+            <div
+              key={msg.id}
+              className={`group/msg flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              onMouseEnter={() => setHoveredMsg(msg.id)}
+              onMouseLeave={() => setHoveredMsg(null)}
+            >
+              {msg.role === 'assistant' && (
+                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-brand-500/20 flex items-center justify-center text-sm mr-2 mt-1">
+                  {agentIdentity.avatar_emoji}
+                </div>
+              )}
+              <div className={`max-w-[75%] ${msg.role === 'user' ? 'order-1' : ''}`}>
+                <div
+                  className={`px-4 py-3 text-sm leading-relaxed ${
+                    msg.role === 'user'
+                      ? 'bg-brand-500 text-white rounded-2xl rounded-br-md'
+                      : 'bg-[var(--surface-2)] text-[var(--text)] rounded-2xl rounded-bl-md'
+                  }`}
+                >
+                  {msg.role === 'assistant' ? (
+                    <div>
+                      {/* Render images from tool results */}
+                      {msg.content.match(/\/images\/[^\s)]+\.png/g)?.map((img, i) => (
+                        <div key={i} className="mb-2">
+                          <img src={img} alt="Generated content" className="max-w-full rounded-lg border border-[var(--border)]" style={{ maxHeight: '400px' }} />
+                        </div>
+                      ))}
+                      <MarkdownRenderer content={msg.content} className="[&_a]:text-brand-400" />
+                      {isStreaming && msg.id === messages[messages.length - 1]?.id && msg.content && (
+                        <span className="inline-block w-1.5 h-4 bg-brand-500 animate-pulse ml-0.5 -mb-0.5" />
+                      )}
+                    </div>
+                  ) : (
+                    <div>
+                      {msg.attachments && msg.attachments.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mb-2">
+                          {msg.attachments.map(att => (
+                            <div key={att.id} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs bg-white/20">
+                              {att.mimeType?.startsWith('image/') && att.preview ? (
+                                <img src={att.preview} alt={att.name} className="w-6 h-6 rounded object-cover" />
+                              ) : (
+                                <span>{att.mimeType === 'application/pdf' ? '📄' : '📎'}</span>
+                              )}
+                              <span className="truncate max-w-[80px]">{att.name}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <span className="whitespace-pre-wrap">{msg.content}</span>
+                    </div>
+                  )}
+                </div>
+                <div className={`flex items-center gap-2 mt-1 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <span className="text-[10px] text-[var(--text-dim)]">{formatTime(msg.timestamp)}</span>
+                  {hoveredMsg === msg.id && (
+                    <>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(msg.content)
+                          showToast('Copied to clipboard', 'success')
+                        }}
+                        className="text-[10px] text-[var(--text-dim)] hover:text-[var(--text)] transition-colors flex items-center gap-0.5"
+                        title="Copy message"
+                      >
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                        Copy
+                      </button>
+                      {msg.role === 'assistant' && (
+                        <button
+                          onClick={() => speakMessage(msg.content, msg.id)}
+                          className={`text-[10px] transition-colors flex items-center gap-0.5 ${speakingMsgId === msg.id ? 'text-brand-400' : 'text-[var(--text-dim)] hover:text-[var(--text)]'}`}
+                          title={speakingMsgId === msg.id ? 'Stop reading' : 'Read aloud'}
+                        >
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                            {speakingMsgId === msg.id && <><path d="M15.54 8.46a5 5 0 0 1 0 7.07" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14" /></>}
+                          </svg>
+                          {speakingMsgId === msg.id ? 'Stop' : 'Read'}
+                        </button>
+                      )}
+                      {conversationId && (
+                        <button
+                          onClick={() => branchFromMessage(msg.id)}
+                          className="text-[10px] text-[var(--text-dim)] hover:text-[var(--text)] transition-colors flex items-center gap-0.5"
+                          title="Branch from this message"
+                        >
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 3v12" /><path d="M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" /><path d="M6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" /><path d="M15 6a9 9 0 0 0-9 9" /></svg>
+                          Branch
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {/* Shadow persona response */}
+          {shadowMode && (shadowLoading || shadowResponse) && messages.length > 0 && messages[messages.length - 1]?.role === 'assistant' && (
+            <div className="flex justify-start mt-1">
+              <div className="flex-shrink-0 w-8 mr-2 mt-1" />
+              <div className="max-w-[75%]">
+                <button
+                  onClick={() => setShadowExpanded(!shadowExpanded)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-colors bg-[var(--surface-2)] border border-[var(--border)] hover:border-[var(--brand)]/40 text-[var(--text-muted)] hover:text-[var(--text)]"
+                >
+                  🔍 <span>Shadow review</span>
+                  {shadowLoading ? (
+                    <span className="inline-block w-3 h-3 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+                  ) : shadowExpanded ? (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15" /></svg>
+                  ) : (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+                  )}
+                </button>
+                {shadowExpanded && shadowResponse && !shadowLoading && (
+                  <div className="mt-2 px-4 py-3 rounded-2xl rounded-bl-md bg-[var(--bg)] border border-[var(--border)] text-sm leading-relaxed">
+                    <MarkdownRenderer content={shadowResponse} className="[&_a]:text-brand-400" />
+                  </div>
+                )}
+                {shadowExpanded && shadowLoading && (
+                  <div className="mt-2 px-4 py-3 rounded-2xl rounded-bl-md bg-[var(--bg)] border border-[var(--border)]">
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <span className="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                        <span className="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                      </div>
+                      <span className="text-xs text-[var(--text-dim)]">Shadow reviewing…</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {loading && (
+            <div className="flex justify-start">
+              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-brand-500/20 flex items-center justify-center text-sm mr-2 mt-1">
+                {agentIdentity.avatar_emoji}
+              </div>
+              <div className="px-4 py-3 rounded-2xl rounded-bl-md bg-[var(--surface-2)]">
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </div>
+                  <span className="text-xs text-[var(--text-dim)]">Thinking…</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Compare mode results */}
+          {compareMode && (compareLeftResponse || compareRightResponse || compareLoading) && (
+            <div className="mt-4">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]">Model Comparison</span>
+                {compareLoading && <span className="text-xs text-[var(--text-dim)]">Loading…</span>}
+              </div>
+              {compareLoading ? (
+                <div className="flex flex-col md:flex-row gap-4">
+                  <div className="flex-1 p-4 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] animate-pulse">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-sm font-medium text-[var(--text-muted)]">{PROVIDERS.find(p => p.id === provider)?.name || provider}</span>
+                      <span className="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    </div>
+                    <div className="h-4 bg-[var(--border)] rounded w-3/4 mb-2" />
+                    <div className="h-4 bg-[var(--border)] rounded w-1/2" />
+                  </div>
+                  <div className="flex-1 p-4 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] animate-pulse">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-sm font-medium text-[var(--text-muted)]">{PROVIDERS.find(p => p.id === provider2)?.name || provider2}</span>
+                      <span className="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    </div>
+                    <div className="h-4 bg-[var(--border)] rounded w-3/4 mb-2" />
+                    <div className="h-4 bg-[var(--border)] rounded w-1/2" />
+                  </div>
+                </div>
+              ) : (
+                <ModelCompare
+                  leftResponse={compareLeftResponse}
+                  rightResponse={compareRightResponse}
+                  leftModel={PROVIDERS.find(p => p.id === provider)?.name || provider}
+                  rightModel={PROVIDERS.find(p => p.id === provider2)?.name || provider2}
+                />
+              )}
+            </div>
+          )}
+
+          {error && (
+            <div className="text-center py-2">
+              <span className="inline-flex flex-col items-center gap-2 px-4 py-3 rounded-xl text-sm bg-red-500/10 text-red-400 border border-red-500/30">
+                {error}
+                {(error.includes('Settings') || error.includes('credits') || error.includes('key')) && (
+                  <button
+                    onClick={() => window.dispatchEvent(new CustomEvent('open-panel', { detail: 'settings' }))}
+                    className="text-brand-400 hover:underline text-xs"
+                  >
+                    Open Settings →
+                  </button>
+                )}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Scroll to bottom button */}
+        {showScrollBtn && (
+          <button
+            onClick={() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })}
+            className="absolute bottom-24 right-6 w-9 h-9 rounded-full bg-[var(--surface)] border border-[var(--border)] shadow-lg flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text)] hover:border-brand-500/50 transition-all z-10"
+            title="Scroll to bottom"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+        )}
+
+        {/* Install prompt */}
+        {showInstallPrompt && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-brand-500/10 border border-brand-500/20 text-sm text-[var(--text)] mx-3 md:mx-4 mt-2 rounded-xl">
+            <span className="text-base">📱</span>
+            <span className="flex-1">Add Lodestone to your home screen for a better experience.</span>
+            <button onClick={() => { setShowInstallPrompt(false); localStorage.setItem('lodestone_install_dismissed', '1') }} className="text-[var(--text-dim)] hover:text-[var(--text)]">✕</button>
+          </div>
+        )}
+
+        {/* Input */}
+        <div className="border-t p-3 md:p-4 flex-shrink-0" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+          {/* Mobile provider selector */}
+          {providerDropdownOpen && (
+            <div className="md:hidden mb-2 flex gap-1.5 flex-wrap">
+              {availableProviders.map(p => {
+                const byok = hasByKey(p.id)
+                const inputPer1M = p.id === 'local-ollama' ? 0 : getInputPer1M(p.id)
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => handleProviderChange(p.id as ProviderId)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
+                      provider === p.id
+                        ? 'bg-brand-500 text-white'
+                        : 'bg-[var(--surface-2)] text-[var(--text-muted)] hover:text-[var(--text)]'
+                    }`}
+                  >
+                    {p.icon} {p.name} {p.id === 'local-ollama' ? '(Free)' : byok ? '(Your key)' : `(${formatPricingShort(inputPer1M)})`}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+          {/* Mobile local model selector */}
+          {provider === 'local-ollama' && localModels.length > 0 && (
+            <div className="md:hidden mb-2">
+              <select value={selectedLocalModel} onChange={e => handleLocalModelChange(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm outline-none">
+                {localModels.map(m => <option key={m.name} value={m.name}>{m.name} ({m.size})</option>)}
+              </select>
+            </div>
+          )}
+          {/* Quick actions */}
+          {!input.trim() && !loading && (
+            <div className="flex gap-1.5 mb-2 max-w-3xl mx-auto flex-wrap">
+              <button onClick={() => { setInput('/recall '); inputRef.current?.focus() }} className="py-2 px-3 text-sm md:py-1 md:px-2.5 md:text-xs font-medium bg-[var(--surface-2)] text-[var(--text-muted)] hover:text-[var(--text)] hover:border-[var(--brand)] border border-[var(--border)] rounded-lg transition-colors">🧠 Recall</button>
+              <button onClick={() => { setInput('Help me write '); inputRef.current?.focus() }} className="py-2 px-3 text-sm md:py-1 md:px-2.5 md:text-xs font-medium bg-[var(--surface-2)] text-[var(--text-muted)] hover:text-[var(--text)] hover:border-[var(--brand)] border border-[var(--border)] rounded-lg transition-colors">✏️ Write</button>
+              <button onClick={() => { setInput('Help me brainstorm ideas for '); inputRef.current?.focus() }} className="py-2 px-3 text-sm md:py-1 md:px-2.5 md:text-xs font-medium bg-[var(--surface-2)] text-[var(--text-muted)] hover:text-[var(--text)] hover:border-[var(--brand)] border border-[var(--border)] rounded-lg transition-colors">💡 Brainstorm</button>
+              <button onClick={() => { setInput('Help me decide: '); inputRef.current?.focus() }} className="py-2 px-3 text-sm md:py-1 md:px-2.5 md:text-xs font-medium bg-[var(--surface-2)] text-[var(--text-muted)] hover:text-[var(--text)] hover:border-[var(--brand)] border border-[var(--border)] rounded-lg transition-colors">⚖️ Decide</button>
+            </div>
+          )}
+          {/* Compare mode indicator */}
+          {compareMode && (
+            <div className="flex items-center gap-2 mb-2 max-w-3xl mx-auto">
+              <span className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-brand-500/10 text-[var(--brand)] border border-brand-500/30">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="7" height="18" rx="1" />
+                  <rect x="14" y="3" width="7" height="18" rx="1" />
+                </svg>
+                Compare: {PROVIDERS.find(p => p.id === provider)?.name || provider} vs {PROVIDERS.find(p => p.id === provider2)?.name || provider2}
+              </span>
+            </div>
+          )}
+          {/* Hidden file input */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            className="hidden"
+            accept=".txt,.md,.csv,.json,.pdf,.png,.jpg,.jpeg,.gif,.webp"
+            multiple
+          />
+
+          {/* Attached files preview */}
+          {attachedFiles.length > 0 && (
+            <div className="flex gap-1.5 mb-2 max-w-3xl mx-auto flex-wrap">
+              {attachedFiles.map(f => (
+                <div key={f.id} className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text)]">
+                  {f.mimeType?.startsWith('image/') && f.preview ? (
+                    <img src={f.preview} alt={f.name} className="w-8 h-8 rounded object-cover" />
+                  ) : (
+                    <span>{f.mimeType?.startsWith('image/') ? '🖼️' : f.mimeType === 'application/pdf' ? '📄' : '📎'}</span>
+                  )}
+                  <span className="truncate max-w-[120px]">{f.name}</span>
+                  <span className="text-[var(--text-dim)]">{f.size < 1024 ? `${f.size}B` : `${(f.size / 1024).toFixed(0)}KB`}</span>
+                  <button onClick={() => setAttachedFiles(prev => prev.filter(a => a.id !== f.id))} className="text-[var(--text-dim)] hover:text-red-400">✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex gap-2 max-w-3xl mx-auto items-end">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="px-2.5 py-2.5 rounded-2xl text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface-2)] transition-colors flex-shrink-0"
+              title="Attach file"
+            >
+              {uploading ? (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+              ) : (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+              )}
+            </button>
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={e => {
+                setInput(e.target.value)
+                e.target.style.height = 'auto'
+                e.target.style.height = Math.min(e.target.scrollHeight, 150) + 'px'
+              }}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
+              onPaste={handlePaste}
+              placeholder="Message Lodestone… (type / for commands, paste images)"
+              className="flex-1 px-4 py-2.5 rounded-2xl text-base md:text-sm resize-none"
+              style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)', maxHeight: '150px' }}
+              rows={1}
+              disabled={loading}
+            />
+            {/* Voice input button */}
+            <button
+              onClick={isListening ? stopListening : startListening}
+              className={`w-11 h-11 rounded-2xl flex-shrink-0 flex items-center justify-center transition-all ${
+                isListening
+                  ? 'bg-red-500/20 text-red-400 ring-2 ring-red-500/50 animate-pulse'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface-2)]'
+              }`}
+              title={isListening ? 'Stop listening' : 'Voice input'}
+            >
+              {isListening ? (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="1" y1="1" x2="23" y2="23" /><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6" /><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2c0 .76-.13 1.49-.36 2.18" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" />
+                </svg>
+              ) : (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" />
+                </svg>
+              )}
+            </button>
+            <button
+              onClick={sendMessage}
+              disabled={loading || !input.trim()}
+              className="w-11 h-11 md:w-auto md:h-auto md:px-4 md:py-2.5 rounded-2xl text-white text-sm font-medium transition-colors disabled:opacity-50 flex-shrink-0 flex items-center justify-center"
+              style={{ background: 'var(--brand)' }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+      
+
+      {/* Command Palette */}
+      {showCommandPalette && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh]" onClick={() => setShowCommandPalette(false)}>
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          <div className="relative w-full max-w-lg bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--border)]">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--text-dim)] flex-shrink-0"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input
+                type="text"
+                value={commandQuery}
+                onChange={e => setCommandQuery(e.target.value)}
+                placeholder="Type a command..."
+                className="flex-1 bg-transparent text-[var(--text)] placeholder:text-[var(--text-dim)] outline-none text-sm"
+                autoFocus
+              />
+              <kbd className="px-1.5 py-0.5 rounded text-[10px] text-[var(--text-dim)] border border-[var(--border)] bg-[var(--surface-2)]">ESC</kbd>
+            </div>
+            <div className="max-h-72 overflow-y-auto py-1">
+              {(() => {
+                const sections = [...new Set(filteredCommands.map(c => c.section))]
+                return sections.length ? sections.map(section => (
+                  <div key={section}>
+                    <div className="px-4 py-1.5 text-xs font-medium text-[var(--text-dim)] uppercase tracking-wider">{section}</div>
+                    {filteredCommands.filter(c => c.section === section).map(cmd => (
+                      <button key={cmd.id} onClick={cmd.action}
+                        className="w-full flex items-center gap-3 px-4 py-2 text-sm text-left hover:bg-[var(--surface-2)] transition-colors text-[var(--text)]">
+                        <span className="text-base">{cmd.icon}</span>
+                        <span>{cmd.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )) : <div className="px-4 py-8 text-center text-sm text-[var(--text-dim)]">No commands found</div>
+              })()}
+            </div>
+            <div className="px-4 py-2 border-t border-[var(--border)] flex gap-4 text-[10px] text-[var(--text-dim)]">
+              <span>↑↓ Navigate</span>
+              <span>↵ Select</span>
+              <span>ESC Close</span>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
