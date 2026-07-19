@@ -46,8 +46,8 @@ Single source of truth written into: **`src/content/site.ts`**.
 | Tier | Price | Notes |
 |------|-------|--------|
 | Community | **$0** forever | **BYOK required**. No included Lodestone usage credits. |
-| Pro | **$29.99/mo** | Included usage **$15/mo**. BYOK optional. Credit packs + auto top-up. |
-| Studio | **$59.99/mo** | Included usage **$40/mo**. Multi-agent, API, etc. BYOK optional. Packs + auto top-up. |
+| Pro | **$30/mo** | Included usage **$15/mo**. BYOK optional. Credit packs + auto top-up. |
+| Studio | **$60/mo** | Included usage **$40/mo**. Multi-agent, API, etc. BYOK optional. Packs + auto top-up. |
 
 ### 3b. BYOK / credits rules (as published)
 
@@ -74,12 +74,13 @@ This page was built as **display only**. No Stripe, checkout, or payment APIs we
 
 | Package | Price | Benefits |
 |---------|-------|----------|
-| Backer | **$5** | Discord role; name in credits; campaign updates; early alpha access |
-| Founding Pro | **$99** | ~4 months Pro prepaid (~$120 value); lifetime rate lock **$24.99/mo** (vs $29.99) while sub stays active |
-| Founding Studio | **$249** | ~4–5 months Studio prepaid (~$240–300 value); lifetime rate lock **$49/mo** (vs $59.99) while sub stays active |
-| Founding Studio+ | **$599** | ~12 months Studio prepaid (~$720 value); rate lock **$49/mo**; roadmap input call; early feature access; founders meetings |
+| Founding Access | **$15** | Alpha download; full local app; BYOK / local usage; Discord role; name in credits; free Community forever at launch |
+| Founding Pro · Early Bird | **$50** | ~2 months Pro included at launch (~$60 value); lifetime rate lock **$25/mo** (vs $30) while sub stays active |
+| Founding Pro | **$100** | ~4 months Pro included (~$120 value); lifetime rate lock **$25/mo** (vs $30) while sub stays active |
+| Founding Studio | **$250** | ~4–5 months Studio included (~$240–300 value); lifetime rate lock **$50/mo** (vs $60) while sub stays active |
+| Founding Partner | **$600** | ~12 months Studio included (~$720 value); rate lock **$50/mo**; standing seat in founders meetings (direct roadmap input); early feature access |
 
-Site copy states rate locks hold **while the subscription stays active**.
+Site copy states rate locks hold **while the subscription stays active**. See §10 for the full restructure rationale; this table reflects the current, shipped ladder.
 
 ---
 
@@ -100,7 +101,7 @@ Site copy states rate locks hold **while the subscription stays active**.
 
 **Shared chrome:** `src/components/SiteLayout.tsx` (nav + footer). Top nav now: Early Access, Pricing, **Compare**, Docs, Downloads (Changelog moved to footer).  
 **Canonical content:** `src/content/site.ts`.  
-**SEO/schema:** `index.html` — title/OG/Twitter now agency-first ("AI that works on your computer, on its own schedule"); JSON-LD gained a `featureList`; the three offer prices (Community / Pro $29.99 / Studio $59.99) are unchanged. Note: per-route meta for `/compare` would need react-helmet/SSR (not wired).
+**SEO/schema:** `index.html` — title/OG/Twitter now agency-first ("AI that works on your computer, on its own schedule"); JSON-LD gained a `featureList`; the three offer prices are Community **$0** / Pro **$30.00** / Studio **$60.00** (updated in the later business pass; see §10). Note: per-route meta for `/compare` would need react-helmet/SSR (not wired).
 
 ---
 
@@ -111,7 +112,7 @@ Site copy states rate locks hold **while the subscription stays active**.
 - `src/components/SiteLayout.tsx` — shared marketing nav/footer
 - `src/pages/EarlyAccess.tsx` — founding packages page (no checkout)
 - `/early-access` route in `App.tsx`
-- `docs/FLINT_SITE_CHANGELOG.md` (this file)
+- `docs/SITE_CHANGELOG_FOR_FLINT.md` (this file)
 - Display font: Instrument Sans + DM Sans (kept dark brand tokens)
 
 ### Visual refresh (2nd pass)
@@ -126,7 +127,7 @@ Site copy states rate locks hold **while the subscription stays active**.
 - DocsLayout uses SiteLayout; docs no longer duplicate full pricing card spam
 
 ### Inconsistencies corrected on the site
-- Studio price was **$79.99** in many places → **$59.99**
+- Studio price was **$79.99** in many places → standardized (now **$60**; interim **$59.99** later rounded, see §10)
 - DesktopOnly showed Pro **$10** / Studio **$30** → removed; uses GA plans
 - Terms had Free / Desktop **$9.99** / Pro **$19.99** → Community / Pro / Studio
 - `index.html` schema had outdated Desktop/Pro offers
@@ -159,9 +160,9 @@ Site copy states rate locks hold **while the subscription stays active**.
 The following remain outside what this website rewrite delivered:
 
 1. Founding checkout (Stripe or equivalent) — package copy lives in `EARLY_ACCESS_PACKAGES` as published on the site.
-2. Backend / Stripe product sync to Pro **$29.99**, Studio **$59.99**, founding locks **$24.99** / **$49**.
+2. Backend / Stripe product sync to Pro **$30**, Studio **$60**, founding locks **$25** / **$50**.
 3. Community free + BYOK-required activation at GA, and flipping `SITE.phase` from early-access to launched.
-4. Claim flow for Backer Discord role / credits / alpha download entitlements.
+4. Claim flow for Founding Access Discord role / credits / alpha download entitlements.
 5. Verification of included credit amounts ($15 / $40) against live billing if they diverge.
 6. Linux download availability (site currently says coming later).
 
@@ -185,7 +186,9 @@ Key URLs after rewrite:
 
 ## 9. Summary for Flint
 
-Lodestone’s public site was rewritten into **early-access/presale mode**. Founding packages (Backer $5, Founding Pro $99, Founding Studio $249, Founding Studio+ $599) are published on `/early-access` with **no payment wiring**. Launch pricing on the site is Community free forever with **BYOK required**, Pro **$29.99**, and Studio **$59.99**, with included credits plus packs/auto top-up on paid tiers; BYOK remains optional on paid. Marketing facts were centralized in `src/content/site.ts`. The desktop chat app was not modified in this pass.
+Lodestone’s public site was rewritten into **early-access/presale mode**. Founding packages (Founding Access $15, Founding Pro · Early Bird $50, Founding Pro $100, Founding Studio $250, Founding Partner $600) are published on `/early-access` with **no payment wiring**. Launch pricing on the site is Community free forever with **BYOK required**, Pro **$30**, and Studio **$60**, with included credits plus packs/auto top-up on paid tiers; BYOK remains optional on paid. Marketing facts were centralized in `src/content/site.ts`. The desktop chat app was not modified in this pass.
+
+> Note: §3, §7, and §9 above were originally written against the first-pass `$X.99` prices and the old founding ladder. They have been updated in place to the current, shipped values so the whole document is internally consistent. §10 documents how and why those values changed.
 
 ---
 
@@ -232,7 +235,7 @@ The site was re-anchored away from "compounding memory" and onto Lodestone's rea
 
 This pass was a **business/pricing review** (not a visual one). Two things changed on the site: the per-token pricing table was corrected for accuracy, and the early-access founding ladder was restructured. Everything remains **display-only — no checkout/billing wired.**
 
-**All prices were then switched to round dollars** (better fit for a trust-first, dev/prosumer brand than charm `.99` pricing). Canonical current values: Community **$0**, Pro **$30/mo**, Studio **$60/mo**; founding locks Pro **$25** / Studio **$50**; one-time founding packages **$15 / $50 / $100 / $250 / $600**. These **supersede the `$X.99` figures in §3, §7, and §9** (earlier snapshots left intact for history). `index.html` JSON-LD offers updated to `30.00` / `60.00`.
+**All prices were then switched to round dollars** (better fit for a trust-first, dev/prosumer brand than charm `.99` pricing). Canonical current values: Community **$0**, Pro **$30/mo**, Studio **$60/mo**; founding locks Pro **$25** / Studio **$50**; one-time founding packages **$15 / $50 / $100 / $250 / $600**. The earlier `$X.99` figures and the old founding ladder have been **updated in place throughout this document** (§3, §7, §9) so nothing here reads as stale. `index.html` JSON-LD offers updated to `30.00` / `60.00`.
 
 #### Model pricing accuracy fix — `src/pages/Pricing.tsx`
 The published token rates are meant to be **provider base cost × 1.10**. The 10% is a hedge for cost fluctuations, **not** the profit driver (subscriptions are). Because included usage is billed at these published rates, **every row must stay ≥ real cost** or included credits run at a loss. Two rows were under real cost and were fixed:
@@ -250,7 +253,7 @@ The old ladder had a **$5 → $99 cliff** (20×), and the $5 "Backer" tier gave 
 
 | Tier | Price | In early access | At launch |
 |------|-------|-----------------|-----------|
-| **Founding Access** | **$15** | Unlocks alpha download; full local app; BYOK/local usage; Discord + name in credits | Falls to free Community + **first month of Pro free** on upgrade |
+| **Founding Access** | **$15** | Unlocks alpha download; full local app; BYOK/local usage; Discord + name in credits | Falls to free **Community** forever (BYOK required); upgrade to a paid plan anytime |
 | **Founding Pro · Early Bird** | **$50** | Access + BYOK | ~2 mo Pro included (~$60) + **$25/mo lock for life** |
 | **Founding Pro** | **$100** | Access + BYOK | ~4 mo Pro included (~$120) + **$25/mo lock** |
 | **Founding Studio** | **$250** | Access + BYOK | ~4–5 mo Studio (~$240–300) + **$50/mo lock** |
