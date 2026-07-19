@@ -17,6 +17,7 @@ import Landing from "./pages/Landing"
 import Login from "./pages/Login"
 import Register from "./pages/Register"
 import Pricing from "./pages/Pricing"
+import Compare from "./pages/Compare"
 import Terms from "./pages/Terms"
 import Privacy from "./pages/Privacy"
 import Eula from "./pages/Eula"
@@ -31,6 +32,7 @@ import UsageGuide from "./pages/UsageGuide"
 import NotFound from "./pages/NotFound"
 import Downloads from "./pages/Downloads"
 import Changelog from "./pages/Changelog"
+import EarlyAccess from "./pages/EarlyAccess"
 import SharedChat from "./pages/SharedChat"
 import MCPMarketplace from "./pages/MCPMarketplace"
 import { ForgotPasswordForm, ResetPasswordForm } from "./components/PasswordReset"
@@ -105,6 +107,8 @@ export default function App() {
           <Route path="/reset-password" element={<ResetPasswordForm />} />
           <Route path="/auth/callback" element={<OAuthCallback />} />
           <Route path="/pricing" element={<Pricing />} />
+          <Route path="/compare" element={<Compare />} />
+          <Route path="/early-access" element={<EarlyAccess />} />
           <Route path="/downloads" element={<Downloads />} />
           <Route path="/changelog" element={<Changelog />} />
           <Route path="/terms" element={<Terms />} />

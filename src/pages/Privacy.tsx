@@ -1,20 +1,11 @@
 import { Link } from 'react-router-dom'
+import SiteLayout from '../components/SiteLayout'
 
 export default function Privacy() {
   return (
-    <div className="min-h-screen bg-[var(--bg)]">
-      <nav className="px-8 py-4 flex items-center gap-2.5 border-b border-[var(--border)]">
-        <Link to="/" className="flex items-center gap-2.5 no-underline">
-          <svg width="28" height="28" viewBox="0 0 512 512">
-            <circle cx="256" cy="256" r="22" fill="#8B5CF6" opacity="0.85"/>
-            <circle cx="256" cy="256" r="10" fill="#fff" opacity="0.95"/>
-          </svg>
-          <span className="font-extrabold text-[var(--text)] text-lg tracking-tight">Lodestone</span>
-        </Link>
-      </nav>
-
+    <SiteLayout>
       <div className="max-w-3xl mx-auto px-6 py-16">
-        <h1 className="text-4xl font-extrabold mb-2 tracking-tight">Privacy Policy</h1>
+        <h1 className="font-display text-4xl font-bold mb-2 tracking-tight">Privacy Policy</h1>
         <p className="text-sm text-[var(--text-dim)] mb-10">Last updated: June 2026</p>
 
         <div className="space-y-8 text-[var(--text-muted)] leading-relaxed text-[15px]">
@@ -163,9 +154,8 @@ export default function Privacy() {
         <div className="mt-12 flex gap-6 justify-center text-sm">
           <Link to="/terms" className="text-[var(--text-muted)] hover:text-[var(--text)] no-underline transition-colors">Terms of Service</Link>
           <Link to="/eula" className="text-[var(--text-muted)] hover:text-[var(--text)] no-underline transition-colors">EULA</Link>
-          <Link to="/" className="text-[var(--text-muted)] hover:text-[var(--text)] no-underline transition-colors">← Home</Link>
         </div>
       </div>
-    </div>
+    </SiteLayout>
   )
 }

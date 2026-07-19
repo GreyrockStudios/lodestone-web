@@ -10,10 +10,10 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#0a0a0a">
     <link rel="manifest" href="/manifest.json">
-    <title>Lodestone — Your AI, Always On</title>
-    <meta name="description" content="Private, local AI agent that remembers everything and acts on your behalf. Runs on your machine, data stays yours." />
-    <meta property="og:title" content="Lodestone — Your AI, Always On" />
-    <meta property="og:description" content="Private, local AI agent that remembers everything and acts on your behalf. Runs on your machine, data stays yours." />
+    <title>Lodestone — AI that works on your computer, on its own schedule</title>
+    <meta name="description" content="Lodestone is a desktop AI agent that does real work on your computer — running your files, apps, and scheduled tasks even while you're away. Local-first, private, and it remembers every run. Early access founding packages available." />
+    <meta property="og:title" content="Lodestone — AI that works on your computer, on its own schedule" />
+    <meta property="og:description" content="A desktop AI agent that runs your files, apps, and scheduled tasks on your machine — even while you're away. It does what a browser tab can't, and remembers every run." />
     <meta property="og:image" content="https://heylodestone.com/og-image.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
@@ -21,43 +21,50 @@
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Lodestone" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Lodestone — Your AI, Always On" />
-    <meta name="twitter:description" content="Private, local AI agent that remembers everything and acts on your behalf. Runs on your machine, data stays yours." />
+    <meta name="twitter:title" content="Lodestone — AI that works on your computer, on its own schedule" />
+    <meta name="twitter:description" content="A desktop AI agent that runs your files, apps, and scheduled tasks on your machine — even while you're away. It does what a browser tab can't, and remembers every run." />
     <meta name="twitter:image" content="https://heylodestone.com/og-image.png" />
     <link rel="canonical" href="https://heylodestone.com/" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Instrument+Sans:wght@500;600;700&display=swap" rel="stylesheet">
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
       "@type": "SoftwareApplication",
       "name": "Lodestone",
-      "description": "Private, local AI agent that remembers everything and acts on your behalf. Runs on your machine, data stays yours.",
+      "description": "Desktop AI agent that does real work on your computer — running your files, apps, and scheduled tasks even while you're away. Local-first, private, and it remembers every run.",
       "url": "https://heylodestone.com",
       "applicationCategory": "AI Assistant",
-      "operatingSystem": ["macOS", "Windows", "Linux"],
+      "operatingSystem": ["macOS", "Windows"],
+      "featureList": [
+        "Scheduled autonomous tasks that run on their own",
+        "Filesystem, clipboard, screenshot, and command tools on your machine",
+        "Local + cloud models with BYOK support",
+        "Compounding memory and knowledge graph",
+        "MCP server connections"
+      ],
       "offers": [
         {
           "@type": "Offer",
-          "name": "Free",
+          "name": "Community",
           "price": "0",
           "priceCurrency": "USD",
-          "description": "Local agent with core features"
-        },
-        {
-          "@type": "Offer",
-          "name": "Desktop",
-          "price": "9.99",
-          "priceCurrency": "USD",
-          "description": "Your AI, always on, always local"
+          "description": "Free forever at launch with BYOK required"
         },
         {
           "@type": "Offer",
           "name": "Pro",
-          "price": "19.99",
+          "price": "30.00",
           "priceCurrency": "USD",
-          "description": "Multi-provider power user"
+          "description": "Included usage, all providers, full workflow"
+        },
+        {
+          "@type": "Offer",
+          "name": "Studio",
+          "price": "60.00",
+          "priceCurrency": "USD",
+          "description": "Power users, teams, and API access"
         }
       ]
     }

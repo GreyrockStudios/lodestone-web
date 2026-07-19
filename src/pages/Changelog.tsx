@@ -1,4 +1,8 @@
 import { useState } from "react"
+import { Link } from "react-router-dom"
+import { ChevronDown, Github, Plus, RefreshCw, ShieldCheck, Wrench } from "lucide-react"
+import SiteLayout from "../components/SiteLayout"
+import { Eyebrow, HeroBackdrop } from "../components/SiteUI"
 
 interface Release {
   version: string
@@ -82,7 +86,7 @@ const releases: Release[] = [
     changes: {
       added: [
         "Local Ollama — run AI models on your Mac, no API key needed",
-        "13 desktop tools — files, commands, clipboard, screenshots & more",
+        "Desktop tools — files, commands, clipboard, screenshots & more",
         "Cloud sync — opt-in, bidirectional",
         "Voice mode — push-to-talk + TTS read-aloud",
         "MCP bridge — connect external tool servers",
@@ -95,7 +99,7 @@ const releases: Release[] = [
 
 const typeBadge = (type: Release["type"]) => {
   const styles = {
-    major: "bg-brand-500/20 text-brand-400 border-brand-500/30",
+    major: "bg-brand-500/20 text-brand-300 border-brand-500/30",
     minor: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
     hotfix: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
   }
@@ -107,129 +111,144 @@ const typeBadge = (type: Release["type"]) => {
   )
 }
 
+const groupMeta = {
+  added: { label: "New", icon: Plus, color: "text-emerald-400", dot: "bg-emerald-400" },
+  fixed: { label: "Fixed", icon: Wrench, color: "text-yellow-400", dot: "bg-yellow-400" },
+  changed: { label: "Changed", icon: RefreshCw, color: "text-blue-400", dot: "bg-blue-400" },
+  security: { label: "Security", icon: ShieldCheck, color: "text-red-400", dot: "bg-red-400" },
+} as const
+
 export default function Changelog() {
   const [expanded, setExpanded] = useState<string | null>("0.5.6")
 
   return (
-    <div className="min-h-screen bg-[var(--bg)] text-[var(--text)]">
-      <div className="max-w-3xl mx-auto px-4 py-16 animate-fade-in">
-        <div className="text-center mb-12">
-          <h1 className="text-3xl md:text-4xl font-bold mb-3">Changelog</h1>
+    <SiteLayout>
+      <section className="relative overflow-hidden border-b border-[var(--border)]">
+        <HeroBackdrop aurora="brand" />
+        <div className="relative max-w-3xl mx-auto px-4 pt-20 pb-12 text-center">
+          <Eyebrow className="mb-5">Changelog</Eyebrow>
+          <h1 className="font-display text-4xl md:text-5xl font-bold tracking-tight mb-3">
+            What&apos;s <span className="text-gradient">new</span>
+          </h1>
           <p className="text-lg text-[var(--text-muted)]">
-            What's new in every version of Lodestone.
+            Every version of Lodestone, in one place.
           </p>
-          <p className="text-sm text-[var(--text-dim)] mt-2">
-            <a href="/downloads" className="text-brand-400 hover:underline">Download latest</a> ·{" "}
-            <a href="https://github.com/GreyrockStudios/lodestone-desktop/releases" className="text-brand-400 hover:underline" target="_blank" rel="noopener noreferrer">
+          <p className="text-sm text-[var(--text-dim)] mt-4">
+            <Link to="/downloads" className="text-brand-300 hover:underline no-underline">
+              Download latest
+            </Link>{" "}
+            ·{" "}
+            <a
+              href="https://github.com/GreyrockStudios/lodestone-desktop/releases"
+              className="text-brand-300 hover:underline"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
               View on GitHub
             </a>
           </p>
         </div>
+      </section>
 
-        <div className="space-y-6">
+      <div className="max-w-3xl mx-auto px-4 py-14">
+        {/* Timeline */}
+        <div className="relative pl-6 sm:pl-8 space-y-6">
+          <span
+            className="absolute left-[7px] sm:left-[9px] top-2 bottom-2 w-px bg-[var(--border)]"
+            aria-hidden="true"
+          />
           {releases.map((release) => {
             const isExpanded = expanded === release.version
-            const totalChanges = (release.changes.added?.length || 0) + (release.changes.fixed?.length || 0) + (release.changes.changed?.length || 0) + (release.changes.security?.length || 0)
+            const totalChanges =
+              (release.changes.added?.length || 0) +
+              (release.changes.fixed?.length || 0) +
+              (release.changes.changed?.length || 0) +
+              (release.changes.security?.length || 0)
 
             return (
-              <div
-                key={release.version}
-                className="rounded-xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden"
-              >
-                <button
-                  onClick={() => setExpanded(isExpanded ? null : release.version)}
-                  className="w-full text-left p-5 flex items-center justify-between hover:bg-[var(--surface-2)] transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="text-2xl font-bold text-[var(--text)]">v{release.version}</div>
-                    {typeBadge(release.type)}
-                    <span className="text-sm text-[var(--text-muted)]">{release.date}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-[var(--text-dim)]">{totalChanges} change{totalChanges !== 1 ? "s" : ""}</span>
-                    <svg
-                      className={`w-5 h-5 text-[var(--text-dim)] transition-transform ${isExpanded ? "rotate-180" : ""}`}
-                      fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </div>
-                </button>
-
-                {isExpanded && (
-                  <div className="px-5 pb-5 border-t border-[var(--border)]">
-                    <p className="text-[var(--text-muted)] mt-3 mb-4">{release.summary}</p>
-
-                    {release.changes.added && release.changes.added.length > 0 && (
-                      <div className="mb-4">
-                        <h4 className="text-sm font-semibold text-green-400 mb-2">✨ New</h4>
-                        <ul className="space-y-1">
-                          {release.changes.added.map((item) => (
-                            <li key={item} className="text-sm text-[var(--text-muted)] flex items-start gap-2">
-                              <span className="text-green-400 mt-0.5">•</span>
-                              <span>{item}</span>
-                            </li>
-                          ))}
-                        </ul>
+              <div key={release.version} className="relative">
+                <span
+                  className={`absolute -left-[21px] sm:-left-[27px] top-5 w-3.5 h-3.5 rounded-full border-2 border-[var(--bg)] ${
+                    release.type === "major" ? "bg-brand-500" : release.type === "minor" ? "bg-cyan-500" : "bg-yellow-500"
+                  }`}
+                  aria-hidden="true"
+                />
+                <div className="site-card overflow-hidden">
+                  <button
+                    onClick={() => setExpanded(isExpanded ? null : release.version)}
+                    className="w-full text-left p-5 flex items-center justify-between hover:bg-[var(--surface-2)]/60 transition-colors"
+                  >
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <div className="font-display text-xl font-bold text-[var(--text)]">
+                        v{release.version}
                       </div>
-                    )}
+                      {typeBadge(release.type)}
+                      <span className="text-sm text-[var(--text-muted)]">{release.date}</span>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className="text-xs text-[var(--text-dim)] hidden sm:inline">
+                        {totalChanges} change{totalChanges !== 1 ? "s" : ""}
+                      </span>
+                      <ChevronDown
+                        className={`w-5 h-5 text-[var(--text-dim)] transition-transform ${
+                          isExpanded ? "rotate-180" : ""
+                        }`}
+                      />
+                    </div>
+                  </button>
 
-                    {release.changes.fixed && release.changes.fixed.length > 0 && (
-                      <div className="mb-4">
-                        <h4 className="text-sm font-semibold text-yellow-400 mb-2">🐛 Fixed</h4>
-                        <ul className="space-y-1">
-                          {release.changes.fixed.map((item) => (
-                            <li key={item} className="text-sm text-[var(--text-muted)] flex items-start gap-2">
-                              <span className="text-yellow-400 mt-0.5">•</span>
-                              <span>{item}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    {release.changes.changed && release.changes.changed.length > 0 && (
-                      <div className="mb-4">
-                        <h4 className="text-sm font-semibold text-blue-400 mb-2">📝 Changed</h4>
-                        <ul className="space-y-1">
-                          {release.changes.changed.map((item) => (
-                            <li key={item} className="text-sm text-[var(--text-muted)] flex items-start gap-2">
-                              <span className="text-blue-400 mt-0.5">•</span>
-                              <span>{item}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    {release.changes.security && release.changes.security.length > 0 && (
-                      <div className="mb-4">
-                        <h4 className="text-sm font-semibold text-red-400 mb-2">🔒 Security</h4>
-                        <ul className="space-y-1">
-                          {release.changes.security.map((item) => (
-                            <li key={item} className="text-sm text-[var(--text-muted)] flex items-start gap-2">
-                              <span className="text-red-400 mt-0.5">•</span>
-                              <span>{item}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                )}
+                  {isExpanded && (
+                    <div className="px-5 pb-5 border-t border-[var(--border)]">
+                      <p className="text-[var(--text-muted)] mt-4 mb-5">{release.summary}</p>
+                      {(Object.keys(groupMeta) as (keyof typeof groupMeta)[]).map((key) => {
+                        const items = release.changes[key]
+                        if (!items || items.length === 0) return null
+                        const meta = groupMeta[key]
+                        const Icon = meta.icon
+                        return (
+                          <div key={key} className="mb-5 last:mb-0">
+                            <h4 className={`text-sm font-semibold mb-2.5 flex items-center gap-1.5 ${meta.color}`}>
+                              <Icon className="w-4 h-4" />
+                              {meta.label}
+                            </h4>
+                            <ul className="space-y-1.5">
+                              {items.map((item) => (
+                                <li
+                                  key={item}
+                                  className="text-sm text-[var(--text-muted)] flex items-start gap-2"
+                                >
+                                  <span className={`mt-1.5 w-1 h-1 rounded-full shrink-0 ${meta.dot}`} />
+                                  <span>{item}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
             )
           })}
         </div>
 
         <div className="mt-12 text-center text-sm text-[var(--text-dim)]">
-          <p>Looking for older versions? Check the{" "}
-            <a href="https://github.com/GreyrockStudios/lodestone-desktop/releases" className="text-brand-400 hover:underline" target="_blank" rel="noopener noreferrer">
+          <p className="inline-flex items-center gap-1.5">
+            <Github className="w-4 h-4" />
+            Looking for older versions? Check the{" "}
+            <a
+              href="https://github.com/GreyrockStudios/lodestone-desktop/releases"
+              className="text-brand-300 hover:underline"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
               GitHub releases page
-            </a>.
+            </a>
+            .
           </p>
         </div>
       </div>
-    </div>
+    </SiteLayout>
   )
 }

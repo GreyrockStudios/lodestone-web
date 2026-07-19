@@ -469,12 +469,12 @@ export default function ApiReference() {
                   <td className="py-2">Pay-as-you-go</td>
                 </tr>
                 <tr className="border-b border-[var(--border)]">
-                  <td className="py-2">Pro ($29.99/mo)</td>
+                  <td className="py-2">Pro ($30/mo)</td>
                   <td className="py-2">300 req/min</td>
                   <td className="py-2">Unlimited</td>
                 </tr>
                 <tr className="border-b border-[var(--border)]">
-                  <td className="py-2">Studio ($79.99/mo)</td>
+                  <td className="py-2">Studio ($60/mo)</td>
                   <td className="py-2">600 req/min</td>
                   <td className="py-2">Unlimited</td>
                 </tr>
