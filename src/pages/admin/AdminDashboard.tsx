@@ -1,13 +1,12 @@
 import { useEffect, useState, useRef } from 'react'
 import { useAdmin } from '../../hooks/useAdmin'
 import { Link } from 'react-router-dom'
-import { Crown, Star, Users, Zap, ArrowUpRight } from 'lucide-react'
+import { Star, Users, Zap, ArrowUpRight } from 'lucide-react'
 
 interface Stats {
   totalUsers: number
   signups7d: number
   subscriptions: Record<string, number>
-  totalMessages: number
   activeUsers30d: number
   activeTrials: number
   recentSignups?: { date: string; count: number }[]
@@ -29,7 +28,6 @@ const STAT_CARDS = [
   { key: 'totalUsers', label: 'Total Users', icon: Users, format: (v: number) => v.toLocaleString() },
   { key: 'signups7d', label: 'New (7d)', icon: Star, format: (v: number) => v.toLocaleString() },
   { key: 'paidUsers', label: 'Paid', icon: Zap, format: (v: number) => v.toLocaleString() },
-  { key: 'totalMessages', label: 'Messages', icon: Crown, format: (v: number) => v.toLocaleString() },
   { key: 'activeUsers30d', label: 'Active (30d)', icon: ArrowUpRight, format: (v: number) => v.toLocaleString() },
 ]
 
@@ -54,7 +52,7 @@ export default function AdminDashboard() {
       <div className="p-8 max-w-5xl mx-auto">
         <div className="animate-pulse space-y-6">
           <div className="h-8 w-48 bg-[var(--surface-2)] rounded" />
-          <div className="grid grid-cols-5 gap-4">{[...Array(5)].map((_, i) => <div key={i} className="h-24 bg-[var(--surface-2)] rounded-xl" />)}</div>
+          <div className="grid grid-cols-4 gap-4">{[...Array(4)].map((_, i) => <div key={i} className="h-24 bg-[var(--surface-2)] rounded-xl" />)}</div>
         </div>
       </div>
     )
@@ -89,7 +87,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
         {STAT_CARDS.map(card => {
           const Icon = card.icon
           return (
