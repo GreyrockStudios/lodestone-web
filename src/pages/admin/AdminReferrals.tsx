@@ -151,20 +151,25 @@ export default function AdminReferrals() {
       <div className="mb-8">
         <h2 className="text-sm font-semibold mb-3">Custom Links</h2>
         <div className="flex gap-2 mb-3">
-          <div className="relative flex-1">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[var(--text-dim)] font-mono">{BASE_URL}/?ref=</span>
+          <div className="flex-1">
+            <label className="block text-xs font-medium text-[var(--text-dim)] uppercase tracking-wider mb-1.5">Slug</label>
             <input
               type="text"
               value={customRef}
               onChange={e => setCustomRef(e.target.value)}
               placeholder="influencer-name"
-              className="w-full pl-[170px] pr-4 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] text-sm focus:border-brand-500/50 outline-none"
+              className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] text-sm focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/20 outline-none transition-colors"
               onKeyDown={e => e.key === 'Enter' && addCustomLink()}
             />
+            {customRef && (
+              <p className="text-xs text-[var(--text-dim)] font-mono mt-1 break-all">{linkUrl(customRef.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 50))}</p>
+            )}
           </div>
-          <button onClick={addCustomLink} className="px-4 py-2 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium transition-colors inline-flex items-center gap-1.5">
-            <Plus className="w-4 h-4" /> Create
-          </button>
+          <div className="flex items-end">
+            <button onClick={addCustomLink} className="px-4 py-2 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium transition-colors inline-flex items-center gap-1.5">
+              <Plus className="w-4 h-4" /> Create
+            </button>
+          </div>
         </div>
         {customLinks.map(ref => {
           const count = refCounts[ref] || 0
