@@ -13,7 +13,7 @@ import { useAuth } from '../hooks/useAuth'
 type FoundingPackage = (typeof EARLY_ACCESS_PACKAGES)[number]
 
 function PackageCard({ pkg, wide = false }: { pkg: FoundingPackage; wide?: boolean }) {
-  const { user, token } = useAuth()
+  const { user, accessToken: token } = useAuth()
   const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
