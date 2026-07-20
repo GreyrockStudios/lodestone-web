@@ -391,7 +391,7 @@ export default function Memory() {
                   <textarea
                     value={newContent}
                     onChange={e => setNewContent(e.target.value)}
-                    placeholder="e.g. I prefer dark mode, my company is Greyrock Studio, I'm allergic to shellfish..."
+                    placeholder="e.g. I prefer dark mode, my company is Arctic-Stone, I'm allergic to shellfish..."
                     className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] focus:border-brand-500 outline-none text-sm resize-none"
                     rows={3}
                     autoFocus

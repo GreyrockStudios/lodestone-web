@@ -9,7 +9,7 @@ export const SITE = {
   phaseLabel: 'Early Access',
   email: 'hello@heylodestone.com',
   github: 'https://github.com/GreyrockStudios/lodestone-desktop',
-  orgUrl: 'https://greyrockstudios.com',
+  orgUrl: 'https://arcticstone.io',
   platforms: {
     shipping: ['macOS', 'Windows'] as const,
     coming: ['Linux'] as const,

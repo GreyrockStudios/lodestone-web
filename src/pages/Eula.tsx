@@ -10,12 +10,12 @@ export default function Eula() {
 
         <div className="space-y-8 text-[var(--text-muted)] leading-relaxed text-[15px]">
           <section>
-            <p>This End User License Agreement ("EULA") is a legal agreement between you ("User," "you") and Greyrock Studio ("Company," "we," "us") for the Lodestone desktop application software ("Software"). By downloading, installing, or using the Software, you agree to be bound by this EULA.</p>
+            <p>This End User License Agreement ("EULA") is a legal agreement between you ("User," "you") and Arctic-Stone LLC ("Company," "we," "us") for the Lodestone desktop application software ("Software"). By downloading, installing, or using the Software, you agree to be bound by this EULA.</p>
           </section>
 
           <section>
             <h2 className="text-xl font-bold text-[var(--text)] mb-3">1. License Grant</h2>
-            <p className="mb-3">Subject to your compliance with this EULA, Greyrock Studio grants you a limited, non-exclusive, non-transferable, revocable license to:</p>
+            <p className="mb-3">Subject to your compliance with this EULA, Arctic-Stone LLC grants you a limited, non-exclusive, non-transferable, revocable license to:</p>
             <ul className="list-disc pl-6 space-y-1">
               <li>Install and run the Software on personal computers that you own or control</li>
               <li>Use the Software for your personal or business purposes in accordance with the applicable subscription tier</li>
@@ -45,7 +45,7 @@ export default function Eula() {
 
           <section>
             <h2 className="text-xl font-bold text-[var(--text)] mb-3">4. Ownership</h2>
-            <p>The Software, including all intellectual property rights therein, is owned by Greyrock Studio. The MIT License applies only to the source code as published in the repository. This EULA does not transfer any ownership rights to you. All rights not expressly granted in this EULA are reserved by Greyrock Studio.</p>
+            <p>The Software, including all intellectual property rights therein, is owned by Arctic-Stone LLC. The MIT License applies only to the source code as published in the repository. This EULA does not transfer any ownership rights to you. All rights not expressly granted in this EULA are reserved by Arctic-Stone LLC.</p>
           </section>
 
           <section>
@@ -57,7 +57,7 @@ export default function Eula() {
               <li>Memory data and knowledge graphs</li>
               <li>Custom prompts and workflows</li>
             </ul>
-            <p className="mt-3">You grant Greyrock Studio a limited, non-exclusive license to process and store your content solely for the purpose of providing the Service, including cloud sync features for paid tiers.</p>
+            <p className="mt-3">You grant Arctic-Stone LLC a limited, non-exclusive license to process and store your content solely for the purpose of providing the Service, including cloud sync features for paid tiers.</p>
           </section>
 
           <section>
@@ -76,7 +76,7 @@ export default function Eula() {
             <h2 className="text-xl font-bold text-[var(--text)] mb-3">7. Limitation of Liability</h2>
             <p className="mb-3">To the maximum extent permitted by applicable law:</p>
             <ul className="list-disc pl-6 space-y-1">
-              <li>In no event shall Greyrock Studio be liable for any indirect, incidental, special, consequential, or punitive damages, including loss of profits, data, or business opportunities</li>
+              <li>In no event shall Arctic-Stone LLC be liable for any indirect, incidental, special, consequential, or punitive damages, including loss of profits, data, or business opportunities</li>
               <li>Our total aggregate liability shall not exceed the amount you paid for the Software in the 12 months preceding the claim, or $100 CAD, whichever is greater</li>
               <li>We are not liable for any loss or corruption of data stored on your local device</li>
               <li>We are not liable for any actions taken based on AI-generated content</li>
@@ -122,7 +122,7 @@ export default function Eula() {
 
           <section>
             <h2 className="text-xl font-bold text-[var(--text)] mb-3">13. Entire Agreement</h2>
-            <p>This EULA, together with the <Link to="/terms" className="text-[var(--cyan)]">Terms of Service</Link> and <Link to="/privacy" className="text-[var(--cyan)]">Privacy Policy</Link>, constitutes the entire agreement between you and Greyrock Studio regarding the Software.</p>
+            <p>This EULA, together with the <Link to="/terms" className="text-[var(--cyan)]">Terms of Service</Link> and <Link to="/privacy" className="text-[var(--cyan)]">Privacy Policy</Link>, constitutes the entire agreement between you and Arctic-Stone LLC regarding the Software.</p>
           </section>
 
           <section>
@@ -131,7 +131,7 @@ export default function Eula() {
           </section>
 
           <section className="pt-4 border-t border-[var(--border)]">
-            <p className="text-sm">Greyrock Studio · Ottawa, Ontario, Canada</p>
+            <p className="text-sm">Arctic-Stone LLC · Ottawa, Ontario, Canada</p>
           </section>
         </div>
 

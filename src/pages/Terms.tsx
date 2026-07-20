@@ -12,7 +12,7 @@ export default function Terms() {
           <section>
             <h2 className="text-xl font-bold text-[var(--text)] mb-3">1. Acceptance of Terms</h2>
             <p>
-              By accessing or using Lodestone (&quot;Service&quot;), operated by Greyrock Studio
+              By accessing or using Lodestone (&quot;Service&quot;), operated by Arctic-Stone LLC
               (&quot;Company,&quot; &quot;we,&quot; &quot;us&quot;), you agree to be bound by these Terms of Service.
               If you do not agree, do not use the Service. These terms apply to both the web
               application and the desktop application.
@@ -90,7 +90,7 @@ export default function Terms() {
           <section>
             <h2 className="text-xl font-bold text-[var(--text)] mb-3">5. Intellectual Property</h2>
             <p className="mb-3">
-              The Service and its original content, features, and functionality are owned by Greyrock
+              The Service and its original content, features, and functionality are owned by Arctic-Stone LLC
               Studio and are protected by international copyright, trademark, and other intellectual
               property laws.
             </p>
@@ -143,7 +143,7 @@ export default function Terms() {
           <section>
             <h2 className="text-xl font-bold text-[var(--text)] mb-3">9. Indemnification</h2>
             <p>
-              You agree to indemnify and hold harmless Greyrock Studio, its officers, directors,
+              You agree to indemnify and hold harmless Arctic-Stone LLC, its officers, directors,
               employees, and agents from any claims, damages, losses, or expenses arising from your
               use of the Service or violation of these Terms.
             </p>
@@ -193,7 +193,7 @@ export default function Terms() {
           </section>
 
           <section className="pt-4 border-t border-[var(--border)]">
-            <p className="text-sm">Greyrock Studio · Ottawa, Ontario, Canada</p>
+            <p className="text-sm">Arctic-Stone LLC · Ottawa, Ontario, Canada</p>
           </section>
         </div>
 

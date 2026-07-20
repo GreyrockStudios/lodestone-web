@@ -10,7 +10,7 @@ export default function Privacy() {
 
         <div className="space-y-8 text-[var(--text-muted)] leading-relaxed text-[15px]">
           <section>
-            <p>Greyrock Studio ("Company," "we," "us") operates Lodestone, a desktop and web-based AI agent platform. This Privacy Policy explains how we collect, use, store, and protect your information, in compliance with the Personal Information Protection and Electronic Documents Act (PIPEDA) and applicable Canadian privacy law.</p>
+            <p>Arctic-Stone LLC ("Company," "we," "us") operates Lodestone, a desktop and web-based AI agent platform. This Privacy Policy explains how we collect, use, store, and protect your information, in compliance with the Personal Information Protection and Electronic Documents Act (PIPEDA) and applicable Canadian privacy law.</p>
           </section>
 
           <section>
@@ -143,7 +143,7 @@ export default function Privacy() {
           <section>
             <h2 className="text-xl font-bold text-[var(--text)] mb-3">12. Contact</h2>
             <p>For privacy inquiries, contact our Privacy Officer at <a href="mailto:privacy@heylodestone.com" className="text-[var(--cyan)]">privacy@heylodestone.com</a>.</p>
-            <p className="mt-2">Greyrock Studio<br/>Ottawa, Ontario, Canada</p>
+            <p className="mt-2">Arctic-Stone LLC<br/>Ottawa, Ontario, Canada</p>
           </section>
 
           <section className="pt-4 border-t border-[var(--border)]">

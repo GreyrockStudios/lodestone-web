@@ -297,7 +297,7 @@ export default function SiteLayout({
               <p>
                 &copy; {new Date().getFullYear()}{' '}
                 <a href={SITE.orgUrl} className="text-[var(--text-muted)] hover:text-[var(--text)] no-underline">
-                  Greyrock Studio
+                  Arctic-Stone LLC
                 </a>
                 . All rights reserved.
               </p>
