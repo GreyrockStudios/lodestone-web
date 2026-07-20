@@ -11,6 +11,9 @@ interface PromoCode {
   usedBy: string | null
   createdAt: string
   durationDays: number
+  maxUses: number
+  currentUses: number
+  description: string | null
   discountPercent?: number
 }
 
@@ -52,6 +55,9 @@ export default function AdminPromo() {
   const [createType, setCreateType] = useState<'trial' | 'discount'>('trial')
   const [createTier, setCreateTier] = useState('pro')
   const [createDuration, setCreateDuration] = useState(14)
+  const [createMaxUses, setCreateMaxUses] = useState(1)
+  const [createPrefix, setCreatePrefix] = useState('')
+  const [createDescription, setCreateDescription] = useState('')
   const [creating, setCreating] = useState(false)
   const [createdCodes, setCreatedCodes] = useState<string[]>([])
 
@@ -84,7 +90,15 @@ export default function AdminPromo() {
     try {
       const data = await adminFetchRef.current<{ codes: string[] }>('/promo', {
         method: 'POST',
-        body: JSON.stringify({ count: createCount, type: createType, tier_id: createTier, duration_days: createDuration }),
+        body: JSON.stringify({
+          count: createCount,
+          type: createType,
+          tier_id: createTier,
+          duration_days: createDuration,
+          max_uses: createMaxUses,
+          description: createDescription || undefined,
+          prefix: createPrefix || undefined,
+        }),
       })
       setCreatedCodes(data.codes)
       setShowCreate(false)
@@ -103,12 +117,6 @@ export default function AdminPromo() {
     } catch (err: any) {
       alert('Failed to revoke: ' + err.message)
     }
-  }
-
-  const copyCode = (code: string) => {
-    navigator.clipboard.writeText(code)
-    setCopied(code)
-    setTimeout(() => setCopied(null), 2000)
   }
 
   const activeCount = codes.filter(c => c.status === 'active').length
@@ -154,7 +162,7 @@ export default function AdminPromo() {
             {createdCodes.map((code, i) => (
               <div key={i} className="flex items-center justify-between group">
                 <span>{code}</span>
-                <button onClick={() => copyCode(code)} className="text-[var(--text-dim)] hover:text-brand-400 opacity-0 group-hover:opacity-100 transition-opacity text-xs">
+                <button onClick={() => { navigator.clipboard.writeText(code); setCopied(code); setTimeout(() => setCopied(null), 2000) }} className="text-[var(--text-dim)] hover:text-brand-400 opacity-0 group-hover:opacity-100 transition-opacity text-xs">
                   {copied === code ? '✓' : 'Copy'}
                 </button>
               </div>
@@ -187,7 +195,6 @@ export default function AdminPromo() {
               <div key={code.id} className={`flex items-center gap-4 px-4 py-3 rounded-xl bg-[var(--surface)] border border-[var(--border)] transition-all ${
                 code.status === 'active' ? 'hover:border-brand-500/20' : 'opacity-60'
               }`}>
-                {/* Code */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-0.5">
                     <span className="font-mono text-sm text-[var(--text)]">{code.code}</span>
@@ -195,6 +202,11 @@ export default function AdminPromo() {
                       <StatusIcon className="w-3 h-3" />
                       {status.label}
                     </span>
+                    {code.maxUses > 1 && code.status === 'active' && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-500/10 text-brand-400 font-medium">
+                        {code.currentUses}/{code.maxUses} used
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 text-xs text-[var(--text-dim)]">
                     <span>{TIER_LABELS[code.tier] || code.tier}</span>
@@ -205,12 +217,16 @@ export default function AdminPromo() {
                     </span>
                     <span className="text-[var(--border)]">·</span>
                     <span>{new Date(code.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                    {code.description && (
+                      <>
+                        <span className="text-[var(--border)]">·</span>
+                        <span className="truncate max-w-[120px]">{code.description}</span>
+                      </>
+                    )}
                   </div>
                 </div>
-
-                {/* Actions */}
                 <div className="shrink-0 flex items-center gap-1">
-                  <button onClick={() => copyCode(code.code)} className="p-1.5 rounded-lg text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-[var(--surface-2)] transition-colors" title="Copy">
+                  <button onClick={() => { navigator.clipboard.writeText(code.code); setCopied(code.id); setTimeout(() => setCopied(null), 2000) }} className="p-1.5 rounded-lg text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-[var(--surface-2)] transition-colors" title="Copy">
                     <Copy className="w-3.5 h-3.5" />
                   </button>
                   {code.status === 'active' && (
@@ -239,47 +255,33 @@ export default function AdminPromo() {
       {/* Create modal */}
       {showCreate && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowCreate(false)}>
-          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-semibold mb-5">Create promo codes</h3>
 
-            <div className="space-y-4">
-              {/* Count */}
-              <div>
-                <label className="block text-xs font-medium text-[var(--text-dim)] uppercase tracking-wider mb-1.5">How many?</label>
-                <div className="flex gap-2">
-                  {[1, 5, 10, 25].map(n => (
-                    <button key={n} onClick={() => setCreateCount(n)} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      createCount === n ? 'bg-brand-500/15 text-brand-400 border border-brand-500/30' : 'bg-[var(--bg)] text-[var(--text-dim)] border border-[var(--border)] hover:border-[var(--border)]'
-                    }`}>
-                      {n}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
+            <div className="space-y-5">
               {/* Type */}
               <div>
-                <label className="block text-xs font-medium text-[var(--text-dim)] uppercase tracking-wider mb-1.5">Type</label>
-                <div className="flex gap-2">
-                  <button onClick={() => setCreateType('trial')} className={`flex-1 py-2.5 rounded-lg text-sm transition-colors ${
-                    createType === 'trial' ? 'bg-brand-500/15 text-brand-400 border border-brand-500/30 font-medium' : 'bg-[var(--bg)] text-[var(--text-dim)] border border-[var(--border)]'
+                <label className="block text-xs font-medium text-[var(--text-dim)] uppercase tracking-wider mb-2">Type</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={() => setCreateType('trial')} className={`py-3 px-3 rounded-lg text-left transition-colors ${
+                    createType === 'trial' ? 'bg-brand-500/15 border border-brand-500/30' : 'bg-[var(--bg)] border border-[var(--border)] hover:border-[var(--border)]'
                   }`}>
-                    <div className="font-medium">Trial</div>
-                    <div className="text-[11px] opacity-70 mt-0.5">Free access period</div>
+                    <div className={`text-sm font-medium ${createType === 'trial' ? 'text-brand-400' : 'text-[var(--text)]'}`}>Trial</div>
+                    <div className={`text-[11px] mt-0.5 ${createType === 'trial' ? 'text-brand-400/70' : 'text-[var(--text-dim)]'}`}>Free access for N days</div>
                   </button>
-                  <button onClick={() => setCreateType('discount')} className={`flex-1 py-2.5 rounded-lg text-sm transition-colors ${
-                    createType === 'discount' ? 'bg-brand-500/15 text-brand-400 border border-brand-500/30 font-medium' : 'bg-[var(--bg)] text-[var(--text-dim)] border border-[var(--border)]'
+                  <button onClick={() => setCreateType('discount')} className={`py-3 px-3 rounded-lg text-left transition-colors ${
+                    createType === 'discount' ? 'bg-brand-500/15 border border-brand-500/30' : 'bg-[var(--bg)] border border-[var(--border)] hover:border-[var(--border)]'
                   }`}>
-                    <div className="font-medium">Discount</div>
-                    <div className="text-[11px] opacity-70 mt-0.5">Percentage off</div>
+                    <div className={`text-sm font-medium ${createType === 'discount' ? 'text-brand-400' : 'text-[var(--text)]'}`}>Discount</div>
+                    <div className={`text-[11px] mt-0.5 ${createType === 'discount' ? 'text-brand-400/70' : 'text-[var(--text-dim)]'}`}>Percentage off purchase</div>
                   </button>
                 </div>
               </div>
 
               {/* Tier */}
               <div>
-                <label className="block text-xs font-medium text-[var(--text-dim)] uppercase tracking-wider mb-1.5">Tier</label>
-                <select value={createTier} onChange={e => setCreateTier(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm outline-none focus:border-brand-500/50">
+                <label className="block text-xs font-medium text-[var(--text-dim)] uppercase tracking-wider mb-2">Tier</label>
+                <select value={createTier} onChange={e => setCreateTier(e.target.value)} className="w-full px-3 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm outline-none focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/20">
                   <optgroup label="Founding · one-time">
                     <option value="access">Founding Access ($15)</option>
                     <option value="founding-pro-early">Founding Pro · Early Bird ($50)</option>
@@ -298,10 +300,10 @@ export default function AdminPromo() {
               {/* Duration (trial only) */}
               {createType === 'trial' && (
                 <div>
-                  <label className="block text-xs font-medium text-[var(--text-dim)] uppercase tracking-wider mb-1.5">Trial length</label>
-                  <div className="flex gap-2">
+                  <label className="block text-xs font-medium text-[var(--text-dim)] uppercase tracking-wider mb-2">Trial length</label>
+                  <div className="grid grid-cols-4 gap-2">
                     {[7, 14, 30, 90].map(d => (
-                      <button key={d} onClick={() => setCreateDuration(d)} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      <button key={d} onClick={() => setCreateDuration(d)} className={`py-2 rounded-lg text-sm font-medium transition-colors ${
                         createDuration === d ? 'bg-brand-500/15 text-brand-400 border border-brand-500/30' : 'bg-[var(--bg)] text-[var(--text-dim)] border border-[var(--border)] hover:border-[var(--border)]'
                       }`}>
                         {d}d
@@ -310,6 +312,62 @@ export default function AdminPromo() {
                   </div>
                 </div>
               )}
+
+              {/* Count */}
+              <div>
+                <label className="block text-xs font-medium text-[var(--text-dim)] uppercase tracking-wider mb-2">How many?</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {[1, 5, 10, 25].map(n => (
+                    <button key={n} onClick={() => setCreateCount(n)} className={`py-2 rounded-lg text-sm font-medium transition-colors ${
+                      createCount === n ? 'bg-brand-500/15 text-brand-400 border border-brand-500/30' : 'bg-[var(--bg)] text-[var(--text-dim)] border border-[var(--border)] hover:border-[var(--border)]'
+                    }`}>
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Max uses per code */}
+              <div>
+                <label className="block text-xs font-medium text-[var(--text-dim)] uppercase tracking-wider mb-2">Max uses per code</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {[1, 5, 10, 50].map(n => (
+                    <button key={n} onClick={() => setCreateMaxUses(n)} className={`py-2 rounded-lg text-sm font-medium transition-colors ${
+                      createMaxUses === n ? 'bg-brand-500/15 text-brand-400 border border-brand-500/30' : 'bg-[var(--bg)] text-[var(--text-dim)] border border-[var(--border)] hover:border-[var(--border)]'
+                    }`}>
+                      {n === 1 ? '1' : n}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] text-[var(--text-dim)] mt-1">1 = single-use. Higher = shareable link.</p>
+              </div>
+
+              {/* Custom prefix */}
+              <div>
+                <label className="block text-xs font-medium text-[var(--text-dim)] uppercase tracking-wider mb-2">Code prefix <span className="normal-case tracking-normal font-normal">(optional)</span></label>
+                <input
+                  type="text"
+                  value={createPrefix}
+                  onChange={e => setCreatePrefix(e.target.value.replace(/[^a-zA-Z0-9]/g, '').slice(0, 12))}
+                  placeholder="e.g. LAUNCH, VIP"
+                  className="w-full px-3 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm outline-none focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/20"
+                />
+                <p className="text-[11px] text-[var(--text-dim)] mt-1">
+                  Result: <span className="font-mono">{createPrefix ? createPrefix.toUpperCase() : 'LODESTONE'}-TRIAL-XXXXXX</span>
+                </p>
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-xs font-medium text-[var(--text-dim)] uppercase tracking-wider mb-2">Note <span className="normal-case tracking-normal font-normal">(optional)</span></label>
+                <input
+                  type="text"
+                  value={createDescription}
+                  onChange={e => setCreateDescription(e.target.value.slice(0, 100))}
+                  placeholder="e.g. Product Hunt launch, influencer X"
+                  className="w-full px-3 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm outline-none focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/20"
+                />
+              </div>
             </div>
 
             <div className="flex gap-2 mt-6">
