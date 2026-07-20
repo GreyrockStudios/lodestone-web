@@ -126,6 +126,19 @@ export const GA_FEATURE_ROWS = [
  * for committed testers and clears payment fees, without gating a not-ready
  * alpha behind a big commitment.
  */
+export const STRIPE_FOUNDING_PRICES: Record<string, string> = {
+  'access': 'price_1Tv7J2INqVL0s6U57HLDTIBH',
+  'founding-pro-early': 'price_1Tv7J3INqVL0s6U5WGMpXDhJ',
+  'founding-pro': 'price_1Tv7J3INqVL0s6U5MMBP5vKU',
+  'founding-studio': 'price_1Tv7J4INqVL0s6U5Zd3lRYJr',
+  'founding-studio-plus': 'price_1Tv7J4INqVL0s6U5YGt76b2X',
+}
+
+export const STRIPE_GA_PRICES: Record<string, { monthly: string; annual: string }> = {
+  'pro': { monthly: 'price_1Tm0fEINqVL0s6U5eBj9ZC1O', annual: 'price_1Tm0fIINqVL0s6U5DHcNbzjy' },
+  'studio': { monthly: 'price_1Tm0fRINqVL0s6U5YV83n8xq', annual: 'price_1Tm0fVINqVL0s6U5v9IFUAUY' },
+}
+
 export const EARLY_ACCESS_PACKAGES = [
   {
     id: 'access',

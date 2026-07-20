@@ -1,16 +1,56 @@
-import { Link } from 'react-router-dom'
-import { ArrowRight, Check, Clock, KeyRound, Mail, Rocket, TrendingUp } from 'lucide-react'
+import { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { ArrowRight, Check, Clock, KeyRound, Mail, Rocket, TrendingUp, Loader2 } from 'lucide-react'
 import SiteLayout from '../components/SiteLayout'
 import { Eyebrow, HeroBackdrop, Reveal, SectionHeading } from '../components/SiteUI'
-import { EARLY_ACCESS, EARLY_ACCESS_PACKAGES, GA_PLANS, SITE } from '../content/site'
+import { EARLY_ACCESS, EARLY_ACCESS_PACKAGES, GA_PLANS, SITE, STRIPE_FOUNDING_PRICES } from '../content/site'
+import { useAuth } from '../hooks/useAuth'
 
 /**
  * Early Access / founding packages page.
- * DISPLAY ONLY. Do not wire Stripe, checkout, or payment APIs here.
+ * Wired to Stripe checkout for founding packages.
  */
 type FoundingPackage = (typeof EARLY_ACCESS_PACKAGES)[number]
 
 function PackageCard({ pkg, wide = false }: { pkg: FoundingPackage; wide?: boolean }) {
+  const { user, token } = useAuth()
+  const navigate = useNavigate()
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleCheckout = async () => {
+    if (!user || !token) {
+      navigate('/login')
+      return
+    }
+    setLoading(true)
+    setError(null)
+    try {
+      const priceId = STRIPE_FOUNDING_PRICES[pkg.id]
+      if (!priceId) {
+        setError('Checkout not available for this package')
+        return
+      }
+      const res = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ priceId, userId: user.id, email: user.email }),
+      })
+      const data = await res.json()
+      if (data.url) {
+        window.location.href = data.url
+      } else {
+        setError(data.error || 'Failed to start checkout')
+      }
+    } catch (err) {
+      setError('Something went wrong. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
   const badge =
     pkg.id === 'access'
       ? 'Start here'
@@ -52,9 +92,24 @@ function PackageCard({ pkg, wide = false }: { pkg: FoundingPackage; wide?: boole
           </li>
         ))}
       </ul>
-      <div className="rounded-xl border border-dashed border-[var(--border)] px-4 py-3 text-center text-sm text-[var(--text-dim)]">
-        Checkout coming soon
-      </div>
+      <button
+        onClick={handleCheckout}
+        disabled={loading}
+        className={`w-full rounded-xl py-3 text-sm font-semibold transition-colors ${
+          pkg.highlighted
+            ? 'bg-brand-500 hover:bg-brand-400 text-white shadow-lg shadow-brand-500/25'
+            : 'bg-[var(--surface-2)] hover:bg-[var(--surface-3)] text-[var(--text)] border border-[var(--border)]'
+        } ${loading ? 'opacity-60 cursor-wait' : ''}`}
+      >
+        {loading ? (
+          <span className="inline-flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Processing...</span>
+        ) : user ? (
+          'Get early access'
+        ) : (
+          'Sign in to purchase'
+        )}
+      </button>
+      {error && <p className="mt-2 text-sm text-red-400 text-center">{error}</p>}
     </div>
   )
 }
@@ -296,7 +351,7 @@ export default function EarlyAccess() {
             {[
               {
                 q: 'Can I buy a package on this page?',
-                a: "Not yet. This page is informational only. No payments are processed here. We'll share claim instructions when checkout opens.",
+                a: "Yes! Click 'Get early access' on any founding package above. You'll be redirected to Stripe's secure checkout for a one-time purchase. After payment, your account will be automatically upgraded.",
               },
               {
                 q: 'Is there a free tier right now?',
