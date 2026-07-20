@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useAdmin } from '../../hooks/useAdmin'
-import { ChevronLeft, ChevronRight, Copy, Crown, ExternalLink, Search, Shield, Star, Trash2, Zap, Monitor, Key, Activity } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Crown, ExternalLink, Search, Shield, Star, Trash2, Zap, Monitor, Key, Activity, Clock } from 'lucide-react'
 
 interface User {
   id: string
@@ -129,6 +129,9 @@ export default function AdminUsers() {
   const [detailId, setDetailId] = useState<string | null>(null)
   const [detail, setDetail] = useState<UserDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
+  const [staleFilter, setStaleFilter] = useState<number | null>(null)
+  const [staleUsers, setStaleUsers] = useState<User[]>([])
+  const [staleLoading, setStaleLoading] = useState(false)
 
   const loadUsers = useCallback(async (searchTerm: string, pageNum: number) => {
     setLoading(true)
@@ -168,7 +171,27 @@ export default function AdminUsers() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
     setPage(1)
+    setStaleFilter(null)
     loadUsers(search, 1)
+  }
+
+  const loadStaleUsers = async (days: number) => {
+    setStaleFilter(days)
+    setStaleLoading(true)
+    try {
+      const data = await adminFetchRef.current<{ users: User[]; total: number; thresholdDays: number }>(`/users/stale?days=${days}`)
+      setStaleUsers(data.users)
+    } catch (err: any) {
+      console.error('Failed to load stale users:', err.message)
+    } finally {
+      setStaleLoading(false)
+    }
+  }
+
+  const clearStaleFilter = () => {
+    setStaleFilter(null)
+    setStaleUsers([])
+    loadUsers(search, page)
   }
 
   const handleTierChange = async (userId: string) => {
@@ -220,7 +243,26 @@ export default function AdminUsers() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Users</h1>
-            <p className="text-[var(--text-dim)] text-sm mt-0.5">{total.toLocaleString()} total</p>
+            <p className="text-[var(--text-dim)] text-sm mt-0.5">{staleFilter ? `${staleUsers.length} stale` : `${total.toLocaleString()} total`}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {staleFilter ? (
+              <button onClick={clearStaleFilter} className="px-3 py-1.5 rounded-lg text-xs border border-[var(--border)] text-[var(--text-dim)] hover:bg-[var(--surface-2)] transition-colors">
+                Show all
+              </button>
+            ) : (
+              <>
+                <button onClick={() => loadStaleUsers(7)} className="px-3 py-1.5 rounded-lg text-xs border border-[var(--border)] text-[var(--text-dim)] hover:bg-[var(--surface-2)] hover:text-yellow-400 transition-colors inline-flex items-center gap-1">
+                  <Clock className="w-3 h-3" /> 7d inactive
+                </button>
+                <button onClick={() => loadStaleUsers(14)} className="px-3 py-1.5 rounded-lg text-xs border border-[var(--border)] text-[var(--text-dim)] hover:bg-[var(--surface-2)] hover:text-yellow-400 transition-colors inline-flex items-center gap-1">
+                  <Clock className="w-3 h-3" /> 14d inactive
+                </button>
+                <button onClick={() => loadStaleUsers(30)} className="px-3 py-1.5 rounded-lg text-xs border border-[var(--border)] text-[var(--text-dim)] hover:bg-[var(--surface-2)] hover:text-yellow-400 transition-colors inline-flex items-center gap-1">
+                  <Clock className="w-3 h-3" /> 30d inactive
+                </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -247,12 +289,12 @@ export default function AdminUsers() {
         )}
 
         <div className="space-y-2">
-          {loading ? (
+          {(loading || staleLoading) ? (
             <div className="text-center py-16 text-[var(--text-dim)]">Loading...</div>
-          ) : users.length === 0 ? (
-            <div className="text-center py-16 text-[var(--text-dim)]">No users found</div>
+          ) : (staleFilter ? staleUsers : users).length === 0 ? (
+            <div className="text-center py-16 text-[var(--text-dim)]">{staleFilter ? 'No stale users found' : 'No users found'}</div>
           ) : (
-            users.map(user => (
+            (staleFilter ? staleUsers : users).map(user => (
               <div
                 key={user.id}
                 className={`group flex items-center gap-4 px-4 py-3 rounded-xl bg-[var(--surface)] border transition-all cursor-pointer ${

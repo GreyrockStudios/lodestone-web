@@ -1,11 +1,13 @@
 import { useAdmin } from '../hooks/useAdmin'
 import { useAuth } from '../hooks/useAuth'
 import { Link, useLocation, Outlet } from 'react-router-dom'
-import { Users, Tag, BarChart3, ExternalLink, LogOut, Shield } from 'lucide-react'
+import { Users, Tag, BarChart3, ExternalLink, LogOut, Shield, DollarSign, ListOrdered } from 'lucide-react'
 
 const nav = [
   { path: '/admin', label: 'Overview', icon: BarChart3, end: true },
   { path: '/admin/users', label: 'Users', icon: Users, end: false },
+  { path: '/admin/waitlist', label: 'Waitlist', icon: ListOrdered, end: false },
+  { path: '/admin/revenue', label: 'Revenue', icon: DollarSign, end: false },
   { path: '/admin/promo', label: 'Promo Codes', icon: Tag, end: false },
 ]
 
