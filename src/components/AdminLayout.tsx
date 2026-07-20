@@ -1,13 +1,13 @@
 import { useAdmin } from '../hooks/useAdmin'
 import { useAuth } from '../hooks/useAuth'
-import { Link, useLocation, Outlet } from 'react-router-dom'
-import { Users, Tag, BarChart3, ExternalLink, LogOut, Shield, DollarSign, ListOrdered, Link } from 'lucide-react'
+import { Link as RouterLink, useLocation, Outlet } from 'react-router-dom'
+import { Users, Tag, BarChart3, ExternalLink, LogOut, Shield, DollarSign, ListOrdered, Link2 } from 'lucide-react'
 
 const nav = [
   { path: '/admin', label: 'Overview', icon: BarChart3, end: true },
   { path: '/admin/users', label: 'Users', icon: Users, end: false },
   { path: '/admin/waitlist', label: 'Waitlist', icon: ListOrdered, end: false },
-  { path: '/admin/referrals', label: 'Referral Links', icon: Link, end: false },
+  { path: '/admin/referrals', label: 'Referral Links', icon: Link2, end: false },
   { path: '/admin/revenue', label: 'Revenue', icon: DollarSign, end: false },
   { path: '/admin/promo', label: 'Promo Codes', icon: Tag, end: false },
 ]
@@ -22,7 +22,7 @@ export default function AdminLayout() {
       <aside className="w-[240px] border-r border-[var(--border)] flex flex-col bg-[var(--surface)] shrink-0">
         {/* Brand */}
         <div className="px-5 pt-5 pb-4">
-          <Link to="/" className="flex items-center gap-2.5 no-underline">
+          <RouterLink to="/" className="flex items-center gap-2.5 no-underline">
             <span className="relative flex items-center justify-center w-8 h-8 rounded-xl bg-gradient-to-br from-brand-500/25 to-cyan-500/20 border border-brand-500/30">
               <svg width="18" height="18" viewBox="0 0 512 512" aria-hidden="true">
                 <circle cx="256" cy="256" r="120" fill="none" stroke="#8B5CF6" strokeWidth="34" opacity="0.6" />
@@ -30,7 +30,7 @@ export default function AdminLayout() {
               </svg>
             </span>
             <span className="font-display font-bold text-[var(--text)] text-lg tracking-tight">Lodestone</span>
-          </Link>
+          </RouterLink>
           <div className="mt-3 flex items-center gap-1.5 text-xs text-brand-400 font-medium">
             <Shield className="w-3.5 h-3.5" />
             Admin
@@ -45,7 +45,7 @@ export default function AdminLayout() {
               : location.pathname.startsWith(item.path)
             const Icon = item.icon
             return (
-              <Link
+              <RouterLink
                 key={item.path}
                 to={item.path}
                 className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] no-underline transition-colors ${
@@ -56,7 +56,7 @@ export default function AdminLayout() {
               >
                 <Icon className="w-4 h-4" />
                 {item.label}
-              </Link>
+              </RouterLink>
             )
           })}
 
