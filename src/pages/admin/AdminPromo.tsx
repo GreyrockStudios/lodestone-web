@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useAdmin } from '../../hooks/useAdmin'
-import { ChevronLeft, ChevronRight, Copy, Plus, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Copy, Plus, X, Tag, Clock, CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
 
 interface PromoCode {
   id: string
@@ -27,16 +27,11 @@ const TIER_LABELS: Record<string, string> = {
   desktop: 'Desktop',
 }
 
-const TYPE_STYLES: Record<string, string> = {
-  trial: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
-  discount: 'bg-green-500/10 text-green-400 border-green-500/20',
-}
-
-const STATUS_STYLES: Record<string, string> = {
-  active: 'bg-green-500/10 text-green-400 border-green-500/20',
-  used: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
-  revoked: 'bg-red-500/10 text-red-400 border-red-500/20',
-  expired: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
+const STATUS_CONFIG: Record<string, { icon: typeof CheckCircle2; color: string; label: string }> = {
+  active: { icon: CheckCircle2, color: 'text-green-400', label: 'Active' },
+  used: { icon: CheckCircle2, color: 'text-gray-400', label: 'Used' },
+  revoked: { icon: XCircle, color: 'text-red-400', label: 'Revoked' },
+  expired: { icon: AlertCircle, color: 'text-gray-400', label: 'Expired' },
 }
 
 export default function AdminPromo() {
@@ -51,7 +46,7 @@ export default function AdminPromo() {
   const [total, setTotal] = useState(0)
   const [pages, setPages] = useState(1)
 
-  // Create form
+  // Create
   const [showCreate, setShowCreate] = useState(false)
   const [createCount, setCreateCount] = useState(1)
   const [createType, setCreateType] = useState<'trial' | 'discount'>('trial')
@@ -60,7 +55,7 @@ export default function AdminPromo() {
   const [creating, setCreating] = useState(false)
   const [createdCodes, setCreatedCodes] = useState<string[]>([])
 
-  // Revoke
+  // Actions
   const [revoking, setRevoking] = useState<string | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
 
@@ -89,12 +84,7 @@ export default function AdminPromo() {
     try {
       const data = await adminFetchRef.current<{ codes: string[] }>('/promo', {
         method: 'POST',
-        body: JSON.stringify({
-          count: createCount,
-          type: createType,
-          tier_id: createTier,
-          duration_days: createDuration,
-        }),
+        body: JSON.stringify({ count: createCount, type: createType, tier_id: createTier, duration_days: createDuration }),
       })
       setCreatedCodes(data.codes)
       setShowCreate(false)
@@ -121,11 +111,8 @@ export default function AdminPromo() {
     setTimeout(() => setCopied(null), 2000)
   }
 
-  const copyAll = () => {
-    navigator.clipboard.writeText(createdCodes.join('\n'))
-    setCopied('__all__')
-    setTimeout(() => setCopied(null), 2000)
-  }
+  const activeCount = codes.filter(c => c.status === 'active').length
+  const usedCount = codes.filter(c => c.status === 'used').length
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
@@ -133,13 +120,13 @@ export default function AdminPromo() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Promo Codes</h1>
-          <p className="text-[var(--text-dim)] text-sm mt-0.5">{total.toLocaleString()} codes</p>
+          <p className="text-[var(--text-dim)] text-sm mt-0.5">{total.toLocaleString()} codes · {activeCount} active · {usedCount} used</p>
         </div>
         <button
           onClick={() => { setShowCreate(true); setCreatedCodes([]) }}
           className="px-4 py-2 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium transition-colors inline-flex items-center gap-1.5"
         >
-          <Plus className="w-4 h-4" /> Create
+          <Plus className="w-4 h-4" /> Create codes
         </button>
       </div>
 
@@ -152,16 +139,13 @@ export default function AdminPromo() {
             </p>
             <div className="flex items-center gap-2">
               <button
-                onClick={copyAll}
+                onClick={() => { navigator.clipboard.writeText(createdCodes.join('\n')); setCopied('__all__'); setTimeout(() => setCopied(null), 2000) }}
                 className="px-3 py-1 rounded-lg text-xs bg-green-500/15 text-green-400 hover:bg-green-500/25 transition-colors inline-flex items-center gap-1"
               >
                 <Copy className="w-3 h-3" />
                 {copied === '__all__' ? 'Copied!' : 'Copy all'}
               </button>
-              <button
-                onClick={() => setCreatedCodes([])}
-                className="p-1 rounded-lg text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-[var(--surface-2)] transition-colors"
-              >
+              <button onClick={() => setCreatedCodes([])} className="p-1 rounded-lg text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-[var(--surface-2)] transition-colors">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -170,10 +154,7 @@ export default function AdminPromo() {
             {createdCodes.map((code, i) => (
               <div key={i} className="flex items-center justify-between group">
                 <span>{code}</span>
-                <button
-                  onClick={() => copyCode(code)}
-                  className="text-[var(--text-dim)] hover:text-brand-400 opacity-0 group-hover:opacity-100 transition-opacity text-xs"
-                >
+                <button onClick={() => copyCode(code)} className="text-[var(--text-dim)] hover:text-brand-400 opacity-0 group-hover:opacity-100 transition-opacity text-xs">
                   {copied === code ? '✓' : 'Copy'}
                 </button>
               </div>
@@ -194,67 +175,63 @@ export default function AdminPromo() {
           <div className="text-center py-16 text-[var(--text-dim)]">Loading...</div>
         ) : codes.length === 0 ? (
           <div className="text-center py-16 text-[var(--text-dim)]">
+            <Tag className="w-8 h-8 mx-auto mb-2 opacity-30" />
             <p className="text-lg mb-1">No promo codes yet</p>
             <p className="text-sm">Create one to get started.</p>
           </div>
         ) : (
-          codes.map(code => (
-            <div key={code.id} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[var(--surface)] border border-[var(--border)] hover:border-[var(--border)]/60 transition-all">
-              {/* Code */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <span className="font-mono text-sm text-[var(--text)]">{code.code}</span>
-                  <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium border ${STATUS_STYLES[code.status] || STATUS_STYLES.active}`}>
-                    {code.status}
-                  </span>
-                  <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium border ${TYPE_STYLES[code.type] || ''}`}>
-                    {code.type}
-                  </span>
+          codes.map(code => {
+            const status = STATUS_CONFIG[code.status] || STATUS_CONFIG.active
+            const StatusIcon = status.icon
+            return (
+              <div key={code.id} className={`flex items-center gap-4 px-4 py-3 rounded-xl bg-[var(--surface)] border border-[var(--border)] transition-all ${
+                code.status === 'active' ? 'hover:border-brand-500/20' : 'opacity-60'
+              }`}>
+                {/* Code */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="font-mono text-sm text-[var(--text)]">{code.code}</span>
+                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${status.color}`}>
+                      <StatusIcon className="w-3 h-3" />
+                      {status.label}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-[var(--text-dim)]">
+                    <span>{TIER_LABELS[code.tier] || code.tier}</span>
+                    <span className="text-[var(--border)]">·</span>
+                    <span className="inline-flex items-center gap-0.5">
+                      <Clock className="w-3 h-3" />
+                      {code.type === 'trial' ? `${code.durationDays}d trial` : 'Discount'}
+                    </span>
+                    <span className="text-[var(--border)]">·</span>
+                    <span>{new Date(code.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3 text-xs text-[var(--text-dim)]">
-                  <span>{TIER_LABELS[code.tier] || code.tier}</span>
-                  {code.type === 'trial' && <span>{code.durationDays}d trial</span>}
-                  <span>{new Date(code.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
-                </div>
-              </div>
 
-              {/* Actions */}
-              <div className="shrink-0 flex items-center gap-1">
-                <button
-                  onClick={() => copyCode(code.code)}
-                  className="p-1.5 rounded-lg text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-[var(--surface-2)] transition-colors"
-                  title="Copy code"
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                </button>
-                {code.status === 'active' && (
-                  <button
-                    onClick={() => setRevoking(code.id)}
-                    className="p-1.5 rounded-lg text-red-400/60 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                    title="Revoke"
-                  >
-                    <X className="w-3.5 h-3.5" />
+                {/* Actions */}
+                <div className="shrink-0 flex items-center gap-1">
+                  <button onClick={() => copyCode(code.code)} className="p-1.5 rounded-lg text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-[var(--surface-2)] transition-colors" title="Copy">
+                    <Copy className="w-3.5 h-3.5" />
                   </button>
-                )}
+                  {code.status === 'active' && (
+                    <button onClick={() => setRevoking(code.id)} className="p-1.5 rounded-lg text-red-400/40 hover:text-red-400 hover:bg-red-500/10 transition-colors" title="Revoke">
+                      <XCircle className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          ))
+            )
+          })
         )}
       </div>
 
       {/* Pagination */}
       {pages > 1 && (
         <div className="flex items-center justify-between mt-5">
-          <p className="text-xs text-[var(--text-dim)]">
-            {total.toLocaleString()} codes · page {page} of {pages}
-          </p>
+          <p className="text-xs text-[var(--text-dim)]">{total.toLocaleString()} codes · page {page} of {pages}</p>
           <div className="flex gap-2">
-            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-3 py-1.5 rounded-lg text-xs border border-[var(--border)] text-[var(--text-dim)] hover:bg-[var(--surface-2)] disabled:opacity-30 transition-colors inline-flex items-center gap-1">
-              <ChevronLeft className="w-3 h-3" /> Prev
-            </button>
-            <button onClick={() => setPage(p => Math.min(pages, p + 1))} disabled={page === pages} className="px-3 py-1.5 rounded-lg text-xs border border-[var(--border)] text-[var(--text-dim)] hover:bg-[var(--surface-2)] disabled:opacity-30 transition-colors inline-flex items-center gap-1">
-              Next <ChevronRight className="w-3 h-3" />
-            </button>
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-3 py-1.5 rounded-lg text-xs border border-[var(--border)] text-[var(--text-dim)] hover:bg-[var(--surface-2)] disabled:opacity-30 transition-colors inline-flex items-center gap-1"><ChevronLeft className="w-3 h-3" /> Prev</button>
+            <button onClick={() => setPage(p => Math.min(pages, p + 1))} disabled={page === pages} className="px-3 py-1.5 rounded-lg text-xs border border-[var(--border)] text-[var(--text-dim)] hover:bg-[var(--surface-2)] disabled:opacity-30 transition-colors inline-flex items-center gap-1">Next <ChevronRight className="w-3 h-3" /></button>
           </div>
         </div>
       )}
@@ -266,70 +243,71 @@ export default function AdminPromo() {
             <h3 className="text-lg font-semibold mb-5">Create promo codes</h3>
 
             <div className="space-y-4">
+              {/* Count */}
               <div>
-                <label className="block text-xs font-medium text-[var(--text-dim)] uppercase tracking-wider mb-1.5">Count</label>
-                <input
-                  type="number"
-                  min="1"
-                  max="100"
-                  value={createCount}
-                  onChange={e => setCreateCount(Number(e.target.value))}
-                  className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm outline-none focus:border-brand-500/50"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-[var(--text-dim)] uppercase tracking-wider mb-1.5">Type</label>
+                <label className="block text-xs font-medium text-[var(--text-dim)] uppercase tracking-wider mb-1.5">How many?</label>
                 <div className="flex gap-2">
-                  {(['trial', 'discount'] as const).map(t => (
-                    <button
-                      key={t}
-                      onClick={() => setCreateType(t)}
-                      className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        createType === t
-                          ? 'bg-brand-500/15 text-brand-400 border border-brand-500/30'
-                          : 'bg-[var(--bg)] text-[var(--text-dim)] border border-[var(--border)] hover:border-[var(--border)]'
-                      }`}
-                    >
-                      {t === 'trial' ? 'Trial' : 'Discount'}
+                  {[1, 5, 10, 25].map(n => (
+                    <button key={n} onClick={() => setCreateCount(n)} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      createCount === n ? 'bg-brand-500/15 text-brand-400 border border-brand-500/30' : 'bg-[var(--bg)] text-[var(--text-dim)] border border-[var(--border)] hover:border-[var(--border)]'
+                    }`}>
+                      {n}
                     </button>
                   ))}
                 </div>
               </div>
 
+              {/* Type */}
+              <div>
+                <label className="block text-xs font-medium text-[var(--text-dim)] uppercase tracking-wider mb-1.5">Type</label>
+                <div className="flex gap-2">
+                  <button onClick={() => setCreateType('trial')} className={`flex-1 py-2.5 rounded-lg text-sm transition-colors ${
+                    createType === 'trial' ? 'bg-brand-500/15 text-brand-400 border border-brand-500/30 font-medium' : 'bg-[var(--bg)] text-[var(--text-dim)] border border-[var(--border)]'
+                  }`}>
+                    <div className="font-medium">Trial</div>
+                    <div className="text-[11px] opacity-70 mt-0.5">Free access period</div>
+                  </button>
+                  <button onClick={() => setCreateType('discount')} className={`flex-1 py-2.5 rounded-lg text-sm transition-colors ${
+                    createType === 'discount' ? 'bg-brand-500/15 text-brand-400 border border-brand-500/30 font-medium' : 'bg-[var(--bg)] text-[var(--text-dim)] border border-[var(--border)]'
+                  }`}>
+                    <div className="font-medium">Discount</div>
+                    <div className="text-[11px] opacity-70 mt-0.5">Percentage off</div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Tier */}
               <div>
                 <label className="block text-xs font-medium text-[var(--text-dim)] uppercase tracking-wider mb-1.5">Tier</label>
-                <select
-                  value={createTier}
-                  onChange={e => setCreateTier(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm outline-none focus:border-brand-500/50"
-                >
-                  <optgroup label="Founding">
-                    <option value="access">Founding Access</option>
-                    <option value="founding-pro-early">Founding Pro · Early Bird</option>
-                    <option value="founding-pro">Founding Pro</option>
-                    <option value="founding-studio">Founding Studio</option>
-                    <option value="founding-studio-plus">Founding Partner</option>
+                <select value={createTier} onChange={e => setCreateTier(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm outline-none focus:border-brand-500/50">
+                  <optgroup label="Founding · one-time">
+                    <option value="access">Founding Access ($15)</option>
+                    <option value="founding-pro-early">Founding Pro · Early Bird ($50)</option>
+                    <option value="founding-pro">Founding Pro ($100)</option>
+                    <option value="founding-studio">Founding Studio ($250)</option>
+                    <option value="founding-studio-plus">Founding Partner ($600)</option>
                   </optgroup>
-                  <optgroup label="GA">
-                    <option value="pro">Pro</option>
-                    <option value="team">Studio</option>
+                  <optgroup label="GA · monthly">
+                    <option value="pro">Pro ($30/mo)</option>
+                    <option value="team">Studio ($60/mo)</option>
                     <option value="enterprise">Enterprise</option>
                   </optgroup>
                 </select>
               </div>
 
+              {/* Duration (trial only) */}
               {createType === 'trial' && (
                 <div>
-                  <label className="block text-xs font-medium text-[var(--text-dim)] uppercase tracking-wider mb-1.5">Trial days</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="365"
-                    value={createDuration}
-                    onChange={e => setCreateDuration(Number(e.target.value))}
-                    className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm outline-none focus:border-brand-500/50"
-                  />
+                  <label className="block text-xs font-medium text-[var(--text-dim)] uppercase tracking-wider mb-1.5">Trial length</label>
+                  <div className="flex gap-2">
+                    {[7, 14, 30, 90].map(d => (
+                      <button key={d} onClick={() => setCreateDuration(d)} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        createDuration === d ? 'bg-brand-500/15 text-brand-400 border border-brand-500/30' : 'bg-[var(--bg)] text-[var(--text-dim)] border border-[var(--border)] hover:border-[var(--border)]'
+                      }`}>
+                        {d}d
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -337,7 +315,7 @@ export default function AdminPromo() {
             <div className="flex gap-2 mt-6">
               <button onClick={() => setShowCreate(false)} className="flex-1 px-4 py-2.5 rounded-lg border border-[var(--border)] text-[var(--text-dim)] text-sm hover:bg-[var(--surface-2)] transition-colors">Cancel</button>
               <button onClick={handleCreate} disabled={creating} className="flex-1 px-4 py-2.5 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium transition-colors disabled:opacity-50">
-                {creating ? 'Creating...' : 'Create'}
+                {creating ? 'Creating...' : `Create ${createCount > 1 ? `${createCount} codes` : 'code'}`}
               </button>
             </div>
           </div>
