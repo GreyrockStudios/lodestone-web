@@ -56,6 +56,7 @@ export default function AdminPromo() {
   const [createTier, setCreateTier] = useState('pro')
   const [createDuration, setCreateDuration] = useState(14)
   const [createMaxUses, setCreateMaxUses] = useState(1)
+  const [createDiscount, setCreateDiscount] = useState(25)
   const [createPrefix, setCreatePrefix] = useState('')
   const [createDescription, setCreateDescription] = useState('')
   const [creating, setCreating] = useState(false)
@@ -96,6 +97,7 @@ export default function AdminPromo() {
           tier_id: createTier,
           duration_days: createDuration,
           max_uses: createMaxUses,
+          discount_percent: createType === 'discount' ? createDiscount : null,
           description: createDescription || undefined,
           prefix: createPrefix || undefined,
         }),
@@ -213,7 +215,7 @@ export default function AdminPromo() {
                     <span className="text-[var(--border)]">·</span>
                     <span className="inline-flex items-center gap-0.5">
                       <Clock className="w-3 h-3" />
-                      {code.type === 'trial' ? `${code.durationDays}d trial` : 'Discount'}
+                      {code.type === 'trial' ? `${code.durationDays}d trial` : code.discountPercent ? `${code.discountPercent}% off` : 'Discount'}
                     </span>
                     <span className="text-[var(--border)]">·</span>
                     <span>{new Date(code.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
@@ -310,6 +312,23 @@ export default function AdminPromo() {
                       </button>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* Discount percentage (discount only) */}
+              {createType === 'discount' && (
+                <div>
+                  <label className="block text-xs font-medium text-[var(--text-dim)] uppercase tracking-wider mb-2">Discount percentage</label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[10, 25, 50, 75].map(p => (
+                      <button key={p} onClick={() => setCreateDiscount(p)} className={`py-2 rounded-lg text-sm font-medium transition-colors ${
+                        createDiscount === p ? 'bg-brand-500/15 text-brand-400 border border-brand-500/30' : 'bg-[var(--bg)] text-[var(--text-dim)] border border-[var(--border)] hover:border-[var(--border)]'
+                      }`}>
+                        {p}%
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-[var(--text-dim)] mt-1">Applied at checkout on the selected tier.</p>
                 </div>
               )}
 
