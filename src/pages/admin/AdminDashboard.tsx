@@ -1,14 +1,28 @@
 import { useEffect, useState, useRef } from 'react'
 import { useAdmin } from '../../hooks/useAdmin'
 import { Link } from 'react-router-dom'
+import { Crown, Star, Users, Zap } from 'lucide-react'
 
 interface Stats {
   totalUsers: number
   signups7d: number
-  subscriptions: { free: number; desktop: number; pro: number }
+  subscriptions: Record<string, number>
   totalMessages: number
   activeUsers30d: number
   activeTrials: number
+  recentSignups?: { date: string; count: number }[]
+}
+
+const TIER_META: Record<string, { name: string; color: string; icon: typeof Crown; group: string }> = {
+  free: { name: 'Community', color: 'bg-gray-500/20 text-gray-300', icon: Star, group: 'GA' },
+  access: { name: 'Founding Access', color: 'bg-emerald-500/20 text-emerald-400', icon: Star, group: 'Founding' },
+  'founding-pro-early': { name: 'Founding Pro · Early Bird', color: 'bg-brand-500/20 text-brand-400', icon: Zap, group: 'Founding' },
+  'founding-pro': { name: 'Founding Pro', color: 'bg-brand-500/20 text-brand-300', icon: Zap, group: 'Founding' },
+  'founding-studio': { name: 'Founding Studio', color: 'bg-cyan-500/20 text-cyan-400', icon: Crown, group: 'Founding' },
+  'founding-studio-plus': { name: 'Founding Partner', color: 'bg-amber-500/20 text-amber-400', icon: Crown, group: 'Founding' },
+  pro: { name: 'Pro', color: 'bg-brand-500/20 text-brand-400', icon: Zap, group: 'GA' },
+  team: { name: 'Studio', color: 'bg-cyan-500/20 text-cyan-400', icon: Crown, group: 'GA' },
+  enterprise: { name: 'Enterprise', color: 'bg-purple-500/20 text-purple-400', icon: Crown, group: 'GA' },
 }
 
 export default function AdminDashboard() {
@@ -48,25 +62,19 @@ export default function AdminDashboard() {
     )
   }
 
+  const subs = stats?.subscriptions || {}
+  const totalPaid = Object.entries(subs).reduce((sum, [tier, count]) => tier !== 'free' ? sum + count : sum, 0)
+
   const cards = [
-    { label: 'Total Users', value: stats?.totalUsers ?? 0, icon: '👥', color: 'brand' },
-    { label: 'Signups (7d)', value: stats?.signups7d ?? 0, icon: '📈', color: 'cyan' },
-    { label: 'Chat Messages', value: stats?.totalMessages ?? 0, icon: '💬', color: 'brand' },
-    { label: 'Active Users (30d)', value: stats?.activeUsers30d ?? 0, icon: '🔵', color: 'cyan' },
-    { label: 'Active Trials', value: stats?.activeTrials ?? 0, icon: '⏳', color: 'brand' },
+    { label: 'Total Users', value: stats?.totalUsers ?? 0, icon: <Users className="w-5 h-5" />, color: 'brand' },
+    { label: 'Signups (7d)', value: stats?.signups7d ?? 0, icon: <Star className="w-5 h-5" />, color: 'cyan' },
+    { label: 'Paid Users', value: totalPaid, icon: <Zap className="w-5 h-5" />, color: 'brand' },
+    { label: 'Chat Messages', value: stats?.totalMessages ?? 0, icon: <Crown className="w-5 h-5" />, color: 'cyan' },
+    { label: 'Active (30d)', value: stats?.activeUsers30d ?? 0, icon: <Users className="w-5 h-5" />, color: 'brand' },
   ]
 
-  const tierColors: Record<string, string> = {
-    free: 'bg-gray-500/20 text-gray-300',
-    desktop: 'bg-brand-500/20 text-brand-400',
-    pro: 'bg-cyan-500/20 text-cyan-400',
-  }
-
-  const tiers = stats ? [
-    { name: 'Free', count: stats.subscriptions.free, color: tierColors.free },
-    { name: 'Desktop', count: stats.subscriptions.desktop, color: tierColors.desktop },
-    { name: 'Pro', count: stats.subscriptions.pro, color: tierColors.pro },
-  ] : []
+  const foundingTiers = Object.entries(TIER_META).filter(([, m]) => m.group === 'Founding')
+  const gaTiers = Object.entries(TIER_META).filter(([, m]) => m.group === 'GA')
 
   return (
     <div className="p-8 max-w-5xl mx-auto animate-fade-in">
@@ -83,17 +91,9 @@ export default function AdminDashboard() {
       {/* Stats cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
         {cards.map(card => (
-          <div
-            key={card.label}
-            className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5 hover:border-brand-500/30 transition-colors"
-          >
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-lg">{card.icon}</span>
-              <span className="text-xs text-[var(--text-dim)] uppercase tracking-wider">{card.label}</span>
-            </div>
-            <p className="text-2xl font-bold text-[var(--text)]">
-              {(card.value ?? 0).toLocaleString()}
-            </p>
+          <div key={card.label} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5 hover:border-brand-500/30 transition-colors">
+            <div className="flex items-center gap-2 mb-2 text-[var(--text-dim)]">{card.icon}<span className="text-xs uppercase tracking-wider">{card.label}</span></div>
+            <p className="text-2xl font-bold text-[var(--text)]">{(card.value ?? 0).toLocaleString()}</p>
           </div>
         ))}
       </div>
@@ -101,64 +101,60 @@ export default function AdminDashboard() {
       {/* Subscription breakdown */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6">
-          <h2 className="text-lg font-semibold mb-4">Subscriptions by Tier</h2>
+          <h2 className="text-lg font-semibold mb-4">Founding Packages</h2>
           <div className="space-y-3">
-            {tiers.map(tier => {
-              const total = stats ? (stats.subscriptions.free + stats.subscriptions.desktop + stats.subscriptions.pro) : 1
-              const pct = stats ? Math.round((tier.count / total) * 100) : 0
+            {foundingTiers.map(([tier, meta]) => {
+              const count = subs[tier] || 0
+              const Icon = meta.icon
               return (
-                <div key={tier.name}>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-[var(--text)]">{tier.name}</span>
-                    <span className="text-[var(--text-muted)]">{tier.count.toLocaleString()} ({pct}%)</span>
+                <div key={tier} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Icon className="w-4 h-4 text-[var(--text-dim)]" />
+                    <span className="text-sm text-[var(--text)]">{meta.name}</span>
                   </div>
-                  <div className="w-full h-2 rounded-full bg-[var(--surface-2)]">
-                    <div
-                      className={`h-2 rounded-full ${tier.color}`}
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
+                  <span className={`px-2 py-0.5 rounded text-xs font-medium border ${meta.color}`}>{count}</span>
                 </div>
               )
             })}
           </div>
         </div>
 
-        {/* Quick links */}
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6">
-          <h2 className="text-lg font-semibold mb-4">Quick Links</h2>
+          <h2 className="text-lg font-semibold mb-4">GA Plans</h2>
           <div className="space-y-3">
-            <Link
-              to="/admin/users"
-              className="flex items-center gap-3 p-3 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] hover:border-brand-500/40 transition-all no-underline"
-            >
-              <span className="text-xl">👥</span>
-              <div>
-                <p className="text-sm font-medium text-[var(--text)]">User Management</p>
-                <p className="text-xs text-[var(--text-muted)]">Search, manage, and edit users</p>
-              </div>
-            </Link>
-            <Link
-              to="/admin/promo"
-              className="flex items-center gap-3 p-3 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] hover:border-brand-500/40 transition-all no-underline"
-            >
-              <span className="text-xl">🎟️</span>
-              <div>
-                <p className="text-sm font-medium text-[var(--text)]">Promo Codes</p>
-                <p className="text-xs text-[var(--text-muted)]">Create and manage promotional codes</p>
-              </div>
-            </Link>
-            <Link
-              to="/dashboard"
-              className="flex items-center gap-3 p-3 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] hover:border-brand-500/40 transition-all no-underline"
-            >
-              <span className="text-xl">📊</span>
-              <div>
-                <p className="text-sm font-medium text-[var(--text)]">User Dashboard</p>
-                <p className="text-xs text-[var(--text-muted)]">Back to your personal dashboard</p>
-              </div>
-            </Link>
+            {gaTiers.map(([tier, meta]) => {
+              const count = subs[tier] || 0
+              const Icon = meta.icon
+              return (
+                <div key={tier} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Icon className="w-4 h-4 text-[var(--text-dim)]" />
+                    <span className="text-sm text-[var(--text)]">{meta.name}</span>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded text-xs font-medium border ${meta.color}`}>{count}</span>
+                </div>
+              )
+            })}
           </div>
+        </div>
+      </div>
+
+      {/* Quick links */}
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6">
+        <h2 className="text-lg font-semibold mb-4">Quick Links</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <Link to="/admin/users" className="flex items-center gap-3 p-3 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] hover:border-brand-500/40 transition-all no-underline">
+            <span className="text-xl">👥</span>
+            <div><p className="text-sm font-medium text-[var(--text)]">User Management</p><p className="text-xs text-[var(--text-muted)]">Search, manage, and edit users</p></div>
+          </Link>
+          <Link to="/admin/promo" className="flex items-center gap-3 p-3 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] hover:border-brand-500/40 transition-all no-underline">
+            <span className="text-xl">🎟️</span>
+            <div><p className="text-sm font-medium text-[var(--text)]">Promo Codes</p><p className="text-xs text-[var(--text-muted)]">Create and manage promotional codes</p></div>
+          </Link>
+          <a href="https://dashboard.stripe.com" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] hover:border-brand-500/40 transition-all no-underline">
+            <span className="text-xl">💳</span>
+            <div><p className="text-sm font-medium text-[var(--text)]">Stripe Dashboard</p><p className="text-xs text-[var(--text-muted)]">View payments and customers</p></div>
+          </a>
         </div>
       </div>
     </div>
