@@ -343,6 +343,72 @@ function ProfileTab({ user, info, TierIcon }: { user: any; info: typeof tierInfo
   )
 }
 
+/* ─── Promo code redemption ─── */
+function PromoRedeem({ tier, onRedeemed }: { tier: string; onRedeemed: () => void }) {
+  const { accessToken } = useAuth()
+  const [code, setCode] = useState('')
+  const [redeeming, setRedeeming] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+
+  const handleRedeem = async () => {
+    if (!code.trim()) return
+    setRedeeming(true)
+    setError('')
+    setSuccess('')
+    try {
+      const token = accessToken || localStorage.getItem('lodestone_access_token')
+      const res = await fetch('/api/license/redeem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ code: code.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        if (data.code === 'ALREADY_REDEEMED') setError('You\'ve already used this code')
+        else if (data.code === 'CODE_EXHAUSTED') setError('This code has reached its usage limit')
+        else setError(data.error || 'Invalid code')
+        return
+      }
+      setSuccess(data.message || 'Promo code redeemed!')
+      setCode('')
+      onRedeemed()
+    } catch {
+      setError('Something went wrong. Please try again.')
+    } finally {
+      setRedeeming(false)
+    }
+  }
+
+  return (
+    <div className="site-card p-6">
+      <h3 className="font-semibold mb-4 flex items-center gap-2">
+        <Gift className="w-4 h-4 text-brand-300" /> Redeem a promo code
+      </h3>
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={code}
+          onChange={e => { setCode(e.target.value.toUpperCase()); setError(''); setSuccess('') }}
+          placeholder="LODESTONE-XXXX-XXXXXX"
+          className="flex-1 px-3 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm font-mono outline-none focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/20 uppercase"
+          onKeyDown={e => e.key === 'Enter' && handleRedeem()}
+        />
+        <button
+          onClick={handleRedeem}
+          disabled={redeeming || !code.trim()}
+          className="px-4 py-2.5 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium transition-colors disabled:opacity-50 whitespace-nowrap"
+        >
+          {redeeming ? 'Applying...' : 'Apply code'}
+        </button>
+      </div>
+      {error && <p className="text-sm text-red-400 mt-2">{error}</p>}
+      {success && <p className="text-sm text-emerald-400 mt-2 flex items-center gap-1"><Check className="w-4 h-4" />{success}</p>}
+      <p className="text-xs text-[var(--text-dim)] mt-2">Have a promo code? Enter it above to activate your plan or trial.</p>
+    </div>
+  )
+}
+
 /* ─── Plan & License tab ─── */
 function PlanTab({ tier, info, TierIcon, isFounder, onManageBilling }: { tier: string; info: typeof tierInfo.free; TierIcon: typeof Crown; isFounder: boolean; onManageBilling: () => void }) {
   return (
@@ -411,6 +477,8 @@ function PlanTab({ tier, info, TierIcon, isFounder, onManageBilling }: { tier: s
           </Link>
         </div>
       )}
+
+      <PromoRedeem tier={tier} onRedeemed={() => window.location.reload()} />
     </div>
   )
 }
