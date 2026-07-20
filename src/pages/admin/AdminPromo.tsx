@@ -215,7 +215,7 @@ export default function AdminPromo() {
                     <span className="text-[var(--border)]">·</span>
                     <span className="inline-flex items-center gap-0.5">
                       <Clock className="w-3 h-3" />
-                      {code.type === 'trial' ? `${code.durationDays}d trial` : code.discountPercent ? `${code.discountPercent}% off` : 'Discount'}
+                      {code.type === 'trial' ? (code.durationDays === 0 ? 'Forever' : `${code.durationDays}d trial`) : code.discountPercent ? (code.discountPercent === 100 ? 'Free' : `${code.discountPercent}% off`) : 'Discount'}
                     </span>
                     <span className="text-[var(--border)]">·</span>
                     <span>{new Date(code.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
@@ -303,15 +303,16 @@ export default function AdminPromo() {
               {createType === 'trial' && (
                 <div>
                   <label className="block text-xs font-medium text-[var(--text-dim)] uppercase tracking-wider mb-2">Trial length</label>
-                  <div className="grid grid-cols-4 gap-2">
-                    {[7, 14, 30, 90].map(d => (
+                  <div className="grid grid-cols-5 gap-2">
+                    {[7, 14, 30, 90, 0].map(d => (
                       <button key={d} onClick={() => setCreateDuration(d)} className={`py-2 rounded-lg text-sm font-medium transition-colors ${
                         createDuration === d ? 'bg-brand-500/15 text-brand-400 border border-brand-500/30' : 'bg-[var(--bg)] text-[var(--text-dim)] border border-[var(--border)] hover:border-[var(--border)]'
                       }`}>
-                        {d}d
+                        {d === 0 ? 'Forever' : `${d}d`}
                       </button>
                     ))}
                   </div>
+                  <p className="text-[11px] text-[var(--text-dim)] mt-1">{createDuration === 0 ? 'Never expires — lifetime access' : 'Access expires after the trial period'}</p>
                 </div>
               )}
 
@@ -319,16 +320,16 @@ export default function AdminPromo() {
               {createType === 'discount' && (
                 <div>
                   <label className="block text-xs font-medium text-[var(--text-dim)] uppercase tracking-wider mb-2">Discount percentage</label>
-                  <div className="grid grid-cols-4 gap-2">
-                    {[10, 25, 50, 75].map(p => (
+                  <div className="grid grid-cols-5 gap-2">
+                    {[10, 25, 50, 75, 100].map(p => (
                       <button key={p} onClick={() => setCreateDiscount(p)} className={`py-2 rounded-lg text-sm font-medium transition-colors ${
                         createDiscount === p ? 'bg-brand-500/15 text-brand-400 border border-brand-500/30' : 'bg-[var(--bg)] text-[var(--text-dim)] border border-[var(--border)] hover:border-[var(--border)]'
                       }`}>
-                        {p}%
+                        {p === 100 ? 'Free' : `${p}%`}
                       </button>
                     ))}
                   </div>
-                  <p className="text-[11px] text-[var(--text-dim)] mt-1">Applied at checkout on the selected tier.</p>
+                  <p className="text-[11px] text-[var(--text-dim)] mt-1">{createDiscount === 100 ? '100% off — completely free access' : 'Applied at checkout on the selected tier.'}</p>
                 </div>
               )}
 
