@@ -15,6 +15,7 @@ import AdminDashboard from "./pages/admin/AdminDashboard"
 import AdminUsers from "./pages/admin/AdminUsers"
 import AdminWaitlist from "./pages/admin/AdminWaitlist"
 import AdminRevenue from "./pages/admin/AdminRevenue"
+import AdminReferrals from "./pages/admin/AdminReferrals"
 import AdminPromo from "./pages/admin/AdminPromo"
 import Landing from "./pages/Landing"
 import Login from "./pages/Login"
@@ -95,6 +96,7 @@ export default function App() {
                 <Route index element={<AdminDashboard />} />
                 <Route path="users" element={<AdminUsers />} />
                 <Route path="waitlist" element={<AdminWaitlist />} />
+                <Route path="referrals" element={<AdminReferrals />} />
                 <Route path="revenue" element={<AdminRevenue />} />
                 <Route path="promo" element={<AdminPromo />} />
               </Route>
@@ -159,6 +161,7 @@ export default function App() {
               <Route index element={<AdminDashboard />} />
               <Route path="users" element={<AdminUsers />} />
               <Route path="waitlist" element={<AdminWaitlist />} />
+              <Route path="referrals" element={<AdminReferrals />} />
               <Route path="revenue" element={<AdminRevenue />} />
               <Route path="promo" element={<AdminPromo />} />
             </Route>

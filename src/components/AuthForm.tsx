@@ -4,6 +4,8 @@ import { useAuth } from '../hooks/useAuth'
 
 export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   const { login, register } = useAuth()
+  const [searchParams] = useSearchParams()
+  const ref = searchParams.get('ref') || undefined
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
@@ -26,7 +28,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
           window.location.href = '/account'
         }
       } else {
-        await register(email, password, displayName)
+        await register(email, password, displayName, ref)
         setRegistered(true)
       }
     } catch (err: any) {
