@@ -1,7 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { Link, useLocation } from 'react-router-dom'
-import { ArrowRight, Github, Menu, X } from 'lucide-react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { ArrowRight, Github, LogOut, Menu, User, X } from 'lucide-react'
 import { SITE } from '../content/site'
+import { useAuth } from '../hooks/useAuth'
 
 const navLinks = [
   { to: '/early-access', label: 'Early Access' },
@@ -34,9 +35,16 @@ export default function SiteLayout({
   children: ReactNode
   bare?: boolean
 }) {
+  const { user, logout } = useAuth()
+  const navigate = useNavigate()
   const location = useLocation()
   const [open, setOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
+
+  const handleLogout = async () => {
+    await logout()
+    navigate('/')
+  }
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8)
@@ -83,19 +91,42 @@ export default function SiteLayout({
             </nav>
 
             <div className="hidden md:flex items-center gap-3">
-              <Link
-                to="/login"
-                className="text-sm text-[var(--text-muted)] hover:text-[var(--text)] no-underline"
-              >
-                Sign in
-              </Link>
-              <Link
-                to="/early-access"
-                className="group inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-brand-500 hover:bg-brand-400 text-white text-sm font-medium no-underline transition-colors shadow-lg shadow-brand-500/25"
-              >
-                Join early access
-                <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
-              </Link>
+              {user ? (
+                <>
+                  <Link
+                    to="/account"
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-[var(--border)] hover:bg-[var(--surface-2)] no-underline transition-colors"
+                  >
+                    <span className="w-6 h-6 rounded-full bg-brand-500/20 border border-brand-500/30 flex items-center justify-center text-xs font-display font-bold text-brand-300">
+                      {user.displayName?.charAt(0)?.toUpperCase() || user.email.charAt(0).toUpperCase()}
+                    </span>
+                    <span className="text-sm text-[var(--text)] max-w-[120px] truncate">{user.displayName || user.email.split('@')[0]}</span>
+                  </Link>
+                  <button
+                    onClick={handleLogout}
+                    className="p-2 rounded-lg text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface-2)] transition-colors"
+                    title="Sign out"
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link
+                    to="/login"
+                    className="text-sm text-[var(--text-muted)] hover:text-[var(--text)] no-underline"
+                  >
+                    Sign in
+                  </Link>
+                  <Link
+                    to="/early-access"
+                    className="group inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-brand-500 hover:bg-brand-400 text-white text-sm font-medium no-underline transition-colors shadow-lg shadow-brand-500/25"
+                  >
+                    Join early access
+                    <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
+                  </Link>
+                </>
+              )}
             </div>
 
             <button
@@ -121,20 +152,44 @@ export default function SiteLayout({
                 </Link>
               ))}
               <div className="pt-3 flex flex-col gap-2 border-t border-[var(--border)] mt-2">
-                <Link
-                  to="/login"
-                  onClick={() => setOpen(false)}
-                  className="px-3 py-2.5 text-sm text-[var(--text-muted)] no-underline"
-                >
-                  Sign in
-                </Link>
-                <Link
-                  to="/early-access"
-                  onClick={() => setOpen(false)}
-                  className="px-3 py-2.5 rounded-lg bg-brand-500 text-white text-sm font-medium text-center no-underline"
-                >
-                  Join early access
-                </Link>
+                {user ? (
+                  <>
+                    <Link
+                      to="/account"
+                      onClick={() => setOpen(false)}
+                      className="flex items-center gap-2 px-3 py-2.5 rounded-lg hover:bg-[var(--surface-2)] no-underline"
+                    >
+                      <span className="w-6 h-6 rounded-full bg-brand-500/20 border border-brand-500/30 flex items-center justify-center text-xs font-display font-bold text-brand-300">
+                        {user.displayName?.charAt(0)?.toUpperCase() || user.email.charAt(0).toUpperCase()}
+                      </span>
+                      <span className="text-sm text-[var(--text)]">{user.displayName || user.email.split('@')[0]}</span>
+                    </Link>
+                    <button
+                      onClick={() => { setOpen(false); handleLogout(); }}
+                      className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm text-[var(--text-muted)] hover:bg-[var(--surface-2)] w-full text-left"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      Sign out
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <Link
+                      to="/login"
+                      onClick={() => setOpen(false)}
+                      className="px-3 py-2.5 text-sm text-[var(--text-muted)] no-underline"
+                    >
+                      Sign in
+                    </Link>
+                    <Link
+                      to="/early-access"
+                      onClick={() => setOpen(false)}
+                      className="px-3 py-2.5 rounded-lg bg-brand-500 text-white text-sm font-medium text-center no-underline"
+                    >
+                      Join early access
+                    </Link>
+                  </>
+                )}
               </div>
             </div>
           )}

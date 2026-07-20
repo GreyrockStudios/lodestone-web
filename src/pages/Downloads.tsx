@@ -1,8 +1,9 @@
-import { Link } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import { Apple, ArrowRight, Check, Download, Monitor, Terminal } from 'lucide-react'
 import SiteLayout from '../components/SiteLayout'
 import { Eyebrow, HeroBackdrop, Reveal } from '../components/SiteUI'
 import { SITE } from '../content/site'
+import { useAuth } from '../hooks/useAuth'
 
 const platforms = [
   {
@@ -42,6 +43,13 @@ const included = [
 ]
 
 export default function Downloads() {
+  const { user } = useAuth()
+
+  // If logged in, redirect to account downloads tab
+  if (user) {
+    return <Navigate to="/account?tab=downloads" replace />
+  }
+
   return (
     <SiteLayout>
       <section className="relative overflow-hidden border-b border-[var(--border)]">

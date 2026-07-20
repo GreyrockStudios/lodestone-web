@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import {
   Eye, EyeOff, CreditCard, AlertTriangle, ChevronLeft, Shield, Zap, Coins,
@@ -123,7 +123,9 @@ export default function Account() {
   const { user, accessToken, logout } = useAuth()
   const navigate = useNavigate()
   const token = accessToken || localStorage.getItem('lodestone_access_token')
-  const [activeTab, setActiveTab] = useState<TabId>('profile')
+  const [searchParams] = useSearchParams()
+  const initialTab = (searchParams.get('tab') as TabId) || 'profile'
+  const [activeTab, setActiveTab] = useState<TabId>(initialTab)
 
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')

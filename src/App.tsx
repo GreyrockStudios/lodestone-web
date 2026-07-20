@@ -1,6 +1,7 @@
 import * as Sentry from "@sentry/react"
 import { Routes, Route, Navigate } from "react-router-dom"
 import { useAuth } from "./hooks/useAuth"
+import SiteLayout from "./components/SiteLayout"
 import AppShell from "./components/AppShell"
 import Settings from "./pages/Settings"
 import MemoryPage from "./pages/Memory"
@@ -131,7 +132,7 @@ export default function App() {
               <Route path="/chat" element={<Navigate to="/account" replace />} />
               <Route path="/chat/:id" element={<Navigate to="/account" replace />} />
               <Route path="/settings" element={<Navigate to="/account" replace />} />
-              <Route path="/account" element={<Account />} />
+              <Route path="/account" element={<SiteLayout><Account /></SiteLayout>} />
               <Route path="/brain" element={<Navigate to="/account" replace />} />
               <Route path="/memory" element={<Navigate to="/account" replace />} />
               <Route path="/dashboard" element={<Navigate to="/account" replace />} />
