@@ -12,7 +12,7 @@ import {
 } from 'lucide-react'
 import SiteLayout from '../components/SiteLayout'
 import { Eyebrow, HeroBackdrop, Reveal, SectionHeading } from '../components/SiteUI'
-import { BROWSER_CANT, COMPARISON_ROWS, SITE, VS_COLUMNS, VS_ROWS } from '../content/site'
+import { BROWSER_CANT, COMPARISON_ROWS, OPENCLAW_ROWS, SITE, VS_COLUMNS, VS_ROWS } from '../content/site'
 
 const browserCantIcons: Record<string, typeof Cpu> = {
   'Touch your files': FolderOpen,
@@ -162,6 +162,54 @@ export default function Compare() {
               </div>
             </div>
           </Reveal>
+        </div>
+      </section>
+
+      {/* Named comparison: Lodestone vs OpenClaw */}
+      <section className="py-16 md:py-20 border-y border-[var(--border)] bg-[var(--surface)]/30">
+        <div className="max-w-4xl mx-auto px-4 md:px-6">
+          <Reveal>
+            <SectionHeading
+              eyebrow="Vs. self-hosted runtimes"
+              eyebrowIcon={<Terminal className="w-3.5 h-3.5" />}
+              title="Lodestone vs OpenClaw"
+              subtitle="OpenClaw is a self-hosted, open-source agent runtime you run over messaging apps. Lodestone is a native desktop app — no server to run, no channel to wire up."
+              className="mb-10"
+            />
+          </Reveal>
+          <Reveal delay={80}>
+            <div className="overflow-x-auto rounded-2xl border border-[var(--border)] site-card">
+              <div className="grid grid-cols-[1fr_1.3fr_1.3fr] text-sm min-w-[640px]">
+                <div className="px-4 md:px-5 py-4 text-[var(--text-dim)] font-medium border-b border-[var(--border)]" />
+                <div className="px-4 md:px-5 py-4 border-b border-[var(--border)] bg-brand-500/10">
+                  <span className="font-display font-bold text-brand-200">Lodestone</span>
+                </div>
+                <div className="px-4 md:px-5 py-4 border-b border-[var(--border)] text-[var(--text-dim)] font-medium">
+                  OpenClaw
+                </div>
+                {OPENCLAW_ROWS.map((row) => (
+                  <div key={row.label} className="contents">
+                    <div className="px-4 md:px-5 py-4 text-[var(--text-muted)] font-medium border-b border-[var(--border)] last:border-0">
+                      {row.label}
+                    </div>
+                    <div className="px-4 md:px-5 py-4 border-b border-[var(--border)] bg-brand-500/[0.06] flex items-start gap-2 text-[var(--text)]">
+                      <Check className="w-4 h-4 text-brand-400 shrink-0 mt-0.5" />
+                      <span>{row.lodestone}</span>
+                    </div>
+                    <div className="px-4 md:px-5 py-4 border-b border-[var(--border)] flex items-start gap-2 text-[var(--text-dim)]">
+                      <Minus className="w-4 h-4 shrink-0 mt-0.5 opacity-60" />
+                      <span>{row.openclaw}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Reveal>
+          <p className="mt-4 text-xs text-[var(--text-dim)] text-center max-w-2xl mx-auto">
+            OpenClaw is open-source software maintained by its own community, not affiliated with
+            Lodestone. Comparison reflects typical self-hosted setup as documented publicly; individual
+            configurations vary.
+          </p>
         </div>
       </section>
 

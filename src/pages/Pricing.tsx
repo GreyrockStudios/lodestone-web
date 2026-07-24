@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { ArrowRight, Check, Minus, RefreshCw, Sparkles } from 'lucide-react'
+import { ArrowRight, CalendarClock, Check, Info, Minus, RefreshCw } from 'lucide-react'
 import SiteLayout from '../components/SiteLayout'
 import { Eyebrow, HeroBackdrop, Reveal, SectionHeading } from '../components/SiteUI'
 import { CLOUD_SYNC, GA_FEATURE_ROWS, GA_PLANS, SITE, USAGE_OPTIONS } from '../content/site'
@@ -50,16 +50,21 @@ export default function Pricing() {
       <section className="relative overflow-hidden border-b border-[var(--border)]">
         <HeroBackdrop aurora="brand" />
         <div className="relative max-w-5xl mx-auto px-4 md:px-6 pt-20 pb-14 text-center">
-          <Eyebrow icon={<Sparkles className="w-3.5 h-3.5" />} className="mb-5">
-            Launch pricing
+          <Eyebrow icon={<CalendarClock className="w-3.5 h-3.5" />} className="mb-5">
+            Pricing after general availability — not on sale yet
           </Eyebrow>
           <h1 className="font-display text-4xl md:text-5xl font-bold tracking-tight mb-4">
             Simple plans, <span className="text-gradient">no lock-in</span>
           </h1>
           <p className="text-[var(--text-muted)] text-lg max-w-xl mx-auto">
             You&apos;re not paying for chat — you&apos;re paying for an agent that does work on its own.
-            Standard plans for when Lodestone is generally available. We&apos;re in{' '}
-            {SITE.phaseLabel.toLowerCase()} now.
+            The plans below are what Lodestone costs once it reaches general availability (GA) — they
+            aren&apos;t for sale during {SITE.phaseLabel.toLowerCase()}. The only pricing available
+            right now lives on the{' '}
+            <Link to="/early-access" className="text-brand-300 hover:text-brand-200 no-underline">
+              early access page
+            </Link>
+            .
           </p>
         </div>
       </section>
@@ -67,21 +72,38 @@ export default function Pricing() {
       <div className="max-w-5xl mx-auto px-4 md:px-6 py-14">
         {/* Early access banner */}
         <Reveal>
-          <div className="mb-12 rounded-2xl site-card-featured px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <p className="font-semibold text-brand-100">Early access is open</p>
-              <p className="text-sm text-[var(--text-muted)]">
-                Founding packages include prepaid months and locked rates. Free Community arrives at launch.
-              </p>
+          <div className="mb-12 rounded-2xl border border-amber-500/30 bg-amber-500/[0.08] px-5 py-4 flex flex-col sm:flex-row sm:items-start gap-3">
+            <Info className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+            <div className="flex-1 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <p className="font-semibold text-amber-200">
+                  Nothing on this page is available for purchase yet
+                </p>
+                <p className="text-sm text-[var(--text-muted)]">
+                  These are the standard plans for after general availability (GA). During early
+                  access, the only way to get Lodestone today is a one-time founding package —
+                  prepaid months and locked rates included, with free Community arriving at launch.
+                </p>
+              </div>
+              <Link
+                to="/early-access"
+                className="shrink-0 inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-brand-500 hover:bg-brand-400 text-white text-sm font-medium no-underline"
+              >
+                See early-access
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
             </div>
-            <Link
-              to="/early-access"
-              className="shrink-0 inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-brand-500 hover:bg-brand-400 text-white text-sm font-medium no-underline"
-            >
-              View founding packages
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
           </div>
+        </Reveal>
+
+        <Reveal>
+          <SectionHeading
+            eyebrow="Preview"
+            eyebrowIcon={<CalendarClock className="w-3.5 h-3.5" />}
+            title="What plans look like at launch"
+            subtitle="A look ahead at GA pricing — not sold during early access."
+            className="mb-8"
+          />
         </Reveal>
 
         {/* Plan cards */}
@@ -95,11 +117,6 @@ export default function Pricing() {
                     : 'site-card'
                 }`}
               >
-                {plan.highlighted && (
-                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] uppercase tracking-wider font-semibold text-white bg-brand-500 px-3 py-1 rounded-full shadow-lg shadow-brand-500/30">
-                    Most popular
-                  </span>
-                )}
                 <h2 className="font-display text-lg font-bold mb-1">{plan.name}</h2>
                 <p className="text-sm text-[var(--text-muted)] mb-4">{plan.description}</p>
                 <div className="mb-5">
@@ -167,7 +184,11 @@ export default function Pricing() {
 
         {/* Comparison table */}
         <Reveal>
-          <SectionHeading title="Feature comparison" className="mb-6" />
+          <SectionHeading
+            title="Feature comparison"
+            subtitle="Community, Pro, and Studio as they'll exist at general availability."
+            className="mb-6"
+          />
           <div className="overflow-x-auto rounded-2xl border border-[var(--border)] mb-16 site-card">
             <table className="w-full text-sm">
               <thead>

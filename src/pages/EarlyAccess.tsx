@@ -95,11 +95,9 @@ function PackageCard({ pkg, wide = false }: { pkg: FoundingPackage; wide?: boole
       <button
         onClick={handleCheckout}
         disabled={loading}
-        className={`w-full rounded-xl py-3 text-sm font-semibold transition-colors ${
-          pkg.highlighted
-            ? 'bg-brand-500 hover:bg-brand-400 text-white shadow-lg shadow-brand-500/25'
-            : 'bg-[var(--surface-2)] hover:bg-[var(--surface-3)] text-[var(--text)] border border-[var(--border)]'
-        } ${loading ? 'opacity-60 cursor-wait' : ''}`}
+        className={`w-full rounded-xl py-3 text-sm font-semibold transition-colors bg-brand-500 hover:bg-brand-400 text-white shadow-lg shadow-brand-500/25 ${
+          loading ? 'opacity-60 cursor-wait' : ''
+        }`}
       >
         {loading ? (
           <span className="inline-flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Processing...</span>
@@ -349,10 +347,6 @@ export default function EarlyAccess() {
           </Reveal>
           <div className="grid gap-3">
             {[
-              {
-                q: 'Can I buy a package on this page?',
-                a: "Yes! Click 'Get early access' on any founding package above. You'll be redirected to Stripe's secure checkout for a one-time purchase. After payment, your account will be automatically upgraded.",
-              },
               {
                 q: 'Is there a free tier right now?',
                 a: 'You can make a free account today, but the alpha download unlocks with a founding package during early access. A free forever Community tier (BYOK required) opens at launch, and every founder keeps it.',

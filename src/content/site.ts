@@ -192,7 +192,7 @@ export const EARLY_ACCESS_PACKAGES = [
     highlighted: false,
     benefits: [
       'Everything in Founding Access',
-      '~4–5 months of Studio included usage at launch (~$240–300 value)',
+      '~5 months of Studio included usage at launch (~$300 value)',
       'Rate locked at $50/mo for life (vs $60)',
       'Lock holds while your subscription stays active',
     ],
@@ -337,6 +337,65 @@ export const VS_ROWS = [
   { feature: 'Compounding long-term memory', values: [true, 'Limited', 'Limited', false] },
   { feature: 'Bring your own API key', values: [true, false, false, false] },
   { feature: 'Your data stays on your machine', values: [true, false, false, false] },
+] as const
+
+/** Zero-setup framing for the hero — the flow from download to "it works". */
+export const ZERO_SETUP = {
+  badge: 'No terminal, no Docker, no Node.js required',
+  steps: ['Download', 'Open', 'Enter your key or pick a plan', 'It works'],
+} as const
+
+/**
+ * Named comparison vs OpenClaw — a self-hosted, messaging-first agent runtime.
+ * Distinct from the browser/chat-AI comparison above: OpenClaw is a DIY,
+ * open-source runtime you install and operate yourself, not a hosted chat tab.
+ */
+export const OPENCLAW_ROWS = [
+  {
+    label: 'Setup',
+    lodestone: 'Download, open, done',
+    openclaw: 'Self-hosted runtime — install on your own Mac/VPS/Pi, run as a persistent process',
+  },
+  {
+    label: 'Interface',
+    lodestone: 'Native desktop app',
+    openclaw: 'Messaging apps (Telegram, WhatsApp, Discord, etc.)',
+  },
+  {
+    label: 'Built-in tools',
+    lodestone: '14, all in the free tier',
+    openclaw: 'Community-built skills, varies by setup',
+  },
+  {
+    label: 'Maintenance',
+    lodestone: 'We handle updates and uptime',
+    openclaw: 'You own uptime, patching, and security',
+  },
+  {
+    label: 'Security posture',
+    lodestone: 'Sandboxed, curated tool access',
+    openclaw: 'Broad shell/file access; documented prompt-injection and security concerns in independent write-ups',
+  },
+  {
+    label: 'Messaging access',
+    lodestone: 'Available on request today; native support planned',
+    openclaw: 'Core feature',
+  },
+  {
+    label: 'Away-from-desktop access',
+    lodestone: 'Phone/web app planned for GA',
+    openclaw: 'Native via messaging apps',
+  },
+  {
+    label: 'Cost',
+    lodestone: 'Free tier + paid tiers',
+    openclaw: 'Free, open-source (MIT)',
+  },
+  {
+    label: 'Support',
+    lodestone: 'Priority/dedicated support on paid tiers',
+    openclaw: 'Community-driven',
+  },
 ] as const
 
 /** Capabilities that are physically impossible inside a browser tab. */

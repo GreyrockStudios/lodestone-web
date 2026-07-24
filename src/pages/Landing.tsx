@@ -8,8 +8,10 @@ import {
   Columns2,
   Cpu,
   Download,
+  KeyRound,
   Lock,
   Monitor,
+  MousePointerClick,
   Network,
   Plug,
   RefreshCw,
@@ -33,6 +35,7 @@ import {
   PILLARS,
   SITE,
   TRUST_POINTS,
+  ZERO_SETUP,
 } from '../content/site'
 
 const featureIcons: Record<string, typeof Brain> = {
@@ -44,6 +47,8 @@ const featureIcons: Record<string, typeof Brain> = {
   'Multi-agent chat': Users,
   'Cloud sync (optional)': RefreshCw,
 }
+
+const zeroSetupIcons = [Download, MousePointerClick, KeyRound, Sparkles]
 
 const pillarIcons: Record<string, typeof Brain> = {
   acts: Cpu,
@@ -79,9 +84,35 @@ export default function Landing() {
               <span className="text-gradient">while you&apos;re away</span>
             </h1>
 
-            <p className="text-lg md:text-xl text-[var(--text-muted)] max-w-xl mx-auto mb-8 leading-relaxed">
+            <p className="text-lg md:text-xl text-[var(--text-muted)] max-w-xl mx-auto mb-6 leading-relaxed">
               {SITE.description}
             </p>
+
+            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-4 py-2 mb-6 text-xs sm:text-sm font-medium text-emerald-300">
+              <ShieldCheck className="w-4 h-4 shrink-0" />
+              {ZERO_SETUP.badge}
+            </div>
+
+            <div className="max-w-2xl mx-auto mb-8">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center rounded-2xl border border-[var(--border)] bg-[var(--surface)]/50 backdrop-blur-sm p-2 gap-1 sm:gap-0">
+                {ZERO_SETUP.steps.map((step, i) => {
+                  const Icon = zeroSetupIcons[i] ?? Sparkles
+                  return (
+                    <div key={step} className="flex items-center flex-1">
+                      <div className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5">
+                        <Icon className="w-4 h-4 text-brand-400 shrink-0" />
+                        <span className="text-xs sm:text-sm text-[var(--text)] font-medium whitespace-nowrap">
+                          {step}
+                        </span>
+                      </div>
+                      {i < ZERO_SETUP.steps.length - 1 && (
+                        <ArrowRight className="hidden sm:block w-4 h-4 text-[var(--text-dim)] shrink-0" />
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
 
             <div className="flex flex-wrap justify-center gap-3 mb-6">
               <Link
